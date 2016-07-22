@@ -15,22 +15,26 @@
 
 #include "compact_iterator.hpp"
 
-template<typename IDX, typename W=uint64_t>
+template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof(W)>
 struct compact_index {
   const size_t       size;      // Size in number of element
   const unsigned int bits;      // Number of bits in an element
   W*                 mem;
 
+  static inline int clz(unsigned int x) { return __builtin_clz(x); }
+  static inline int clz(unsigned long x) { return __builtin_clzl(x); }
+  static inline int clz(unsigned long long x) { return __builtin_clzll(x); }
+
+  // Number of bits required for indices/values in the range [0, s).
   static unsigned int required_bits(size_t s) {
-    unsigned int res = 63 - __builtin_clzl(s);
+    unsigned int res = bitsof(size_t) - 1 - clz(s);
     res += (s > ((size_t)1 << res)) + (std::is_signed<IDX>::value ? 1 : 0);
     return res;
   }
 
   static size_t elements_to_words(size_t size, unsigned int bits) {
-    static const size_t wbits = 8 * sizeof(W);
     size_t total_bits = size * bits;
-    return total_bits / wbits + (total_bits % wbits != 0);
+    return total_bits / UB + (total_bits % UB != 0);
   }
 
   static void touch_mem(W* ptr, size_t pg_start, size_t pg_end) {
@@ -58,8 +62,9 @@ struct compact_index {
 #endif
   }
 
-  typedef compact_iterator<IDX, W>       iterator;
-  typedef const_compact_iterator<IDX, W> const_iterator;
+  typedef compact_iterator<IDX, W, false, UB> iterator;
+  typedef const_compact_iterator<IDX, W, UB>  const_iterator;
+  typedef compact_iterator<IDX, W, true, UB>  mt_iterator; // Multi thread safe version
 
   compact_index(size_t s, unsigned int b) : size(s), bits(b), mem(alloc_mem(elements_to_words(size, bits))) { }
   explicit compact_index(size_t s) :
@@ -81,6 +86,10 @@ struct compact_index {
   iterator end() { return begin() + size; }
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
+
+  // Multi thread safe iterator
+  mt_iterator mt_begin() { return mt_iterator(mem, bits, 0); }
+  mt_iterator mt_end() { return begin() + size; }
 
   IDX operator[](size_t i) const { return cbegin()[i]; }
 

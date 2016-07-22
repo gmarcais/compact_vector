@@ -16,6 +16,11 @@ template<typename T> struct parallel_iterator_traits { };
 template<typename T>
 struct parallel_iterator_traits<T*> {
   typedef T* type;
+  static bool cas(type x, T& expected, const T& val) {
+    const T old = expected;
+    expected = __sync_val_compare_and_swap(x, expected, val);
+    return old == expected;
+  }
 };
 
 template<typename T>
