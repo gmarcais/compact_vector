@@ -28,7 +28,7 @@ template<typename IDX, typename W, bool TS, unsigned int UB>
 struct TypeValueContainer {
   typedef IDX                       index_type;
   typedef W                         word_type;
-  typedef compact_index<IDX, W, UB> compact_index;
+  typedef compact_index<IDX, W, UB> compact_index_type;
   static const bool                 thread_safe = TS;
   static const unsigned int         used_bits   = UB;
 };
@@ -45,20 +45,20 @@ protected:
   static const size_t  size    = 1000;
 };
 template<typename T>
-const int CompactIndexTest<T>::bits[4];
+constexpr int CompactIndexTest<T>::bits[4];
 template<typename T>
 const size_t CompactIndexTest<T>::size;
 TYPED_TEST_CASE_P(CompactIndexTest);
 
 TYPED_TEST_P(CompactIndexTest, Iterator) {
   std::default_random_engine         generator;
-  for(int i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
+  for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
     const int bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
-    typename TypeParam::compact_index index(this->size, bits);
+    typename TypeParam::compact_index_type index(this->size, bits);
 
     EXPECT_EQ(this->size, index.size);
-    EXPECT_EQ(bits, index.bits);
+    EXPECT_EQ((unsigned int)bits, index.bits);
 
     std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
 
@@ -118,13 +118,13 @@ TYPED_TEST_P(CompactIndexTest, Iterator) {
 TYPED_TEST_P(CompactIndexTest, Swap) {
   std::default_random_engine         generator;
 
-  for(int i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
-    const int                          bits = this->bits[i];
+  for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
+    const int                              bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
-    typename TypeParam::compact_index  index(this->size, bits);
-    std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
-    const int                          v1   = uni(generator);
-    const int                          v2   = uni(generator);
+    typename TypeParam::compact_index_type index(this->size, bits);
+    std::uniform_int_distribution<int>     uni(0, (1 << (bits - 1)) - 1);
+    const typename TypeParam::index_type   v1   = uni(generator);
+    const typename TypeParam::index_type   v2   = uni(generator);
 
     auto it = index.begin();
     auto jt = it + 10;
@@ -258,8 +258,8 @@ TEST(CompactIndex2, CAS) {
   }
   for(auto it = index.cbegin(); it != index.cend(); ++it) {
     SCOPED_TRACE(::testing::Message() << "i:" << (it - index.cbegin()));
-    ASSERT_LE(1, *it);
-    ASSERT_GE(nb_threads, *it);
+    ASSERT_LE((unsigned int)1, *it);
+    ASSERT_GE((unsigned int)nb_threads, *it);
     --successes_ci[*it - 1];
   }
 

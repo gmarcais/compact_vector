@@ -382,7 +382,6 @@ struct word_bits<X, 0, values...> : size_t_ary<(size_t)0, values...> {};
 template<typename Iterator>
 bool lexicographical_compare_n(Iterator first1, const size_t len1,
                                Iterator first2, const size_t len2) {
-  typedef typename Iterator::word_type W;
   static const unsigned int UB = Iterator::used_bits;
 
   const auto bits            = first1.get_bits();
