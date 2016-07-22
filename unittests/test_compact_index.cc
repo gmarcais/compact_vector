@@ -3,6 +3,7 @@
 #include <random>
 #include <algorithm>
 #include <thread>
+#include <chrono>
 
 #include <compact_iterator.hpp>
 #include <compact_index.hpp>
@@ -135,4 +136,81 @@ TEST(CompactIndex, MultiThread) {
   for(size_t i = 0; i < size; ++i)
     EXPECT_EQ(1000, index[i]);
 } // CompactIndex.MultiThread
+
+template<typename Iterator>
+void cas_values(int val, Iterator ary, size_t size, size_t* nb_success) {
+  // Try to set my thid in every location. Succeed only if already zero
+  std::default_random_engine         gen;
+  std::uniform_int_distribution<int> dist(10, 100);
+
+  for(size_t i = 0; i < size; ++i, ++ary) {
+    int expected = 0;
+    *nb_success += compact_index_imp::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
+    // if(*ary != val) {
+    //   std::cerr << i << ' ' << *ary << ' ' << val << std::endl;
+    //   asm("int3");
+    // }
+      //    assert(*ary == val);
+    if(i % 128 == 0)
+      std::this_thread::sleep_for(std::chrono::microseconds(dist(gen)));
+  }
+}
+
+TEST(CompactIndex, CAS) {
+  const size_t size       = 1024 * 1024;
+  const int    nb_threads = 2;
+  const int    bits       = 3;
+
+  std::vector<int> ptr(size, 0);
+  compact_index<int> index(size, bits);
+
+  std::vector<std::thread> threads;
+
+  // Cas values on int*
+  std::vector<size_t> successes_ptr(nb_threads, 0);
+  for(int i = 0; i < nb_threads; ++i) {
+    threads.push_back(std::thread(cas_values<int*>, i + 1, ptr.data(), size, &successes_ptr[i]));
+  }
+  for(int i = 0; i < nb_threads; ++i)
+    threads[i].join();
+
+  threads.clear();
+  // CAS values on compact iterator
+  std::vector<size_t> successes_ci(nb_threads, 0);
+  for(int i = 0; i < nb_threads; ++i) {
+    threads.push_back(std::thread(cas_values<compact_index<int>::mt_iterator>, i + 1, index.mt_begin(), size, &successes_ci[i]));
+  }
+  for(int i = 0; i < nb_threads; ++i)
+    threads[i].join();
+
+  size_t total_successes_ptr = 0;
+  for(const auto s : successes_ptr) {
+    std::cout << s << '\n';
+    total_successes_ptr += s;
+  }
+  size_t total_successes_ci  = 0;
+  for(const auto s : successes_ci) {
+    std::cout << s << '\n';
+    total_successes_ci += s;
+  }
+
+  EXPECT_EQ(size, total_successes_ptr);
+  EXPECT_EQ(size, total_successes_ci);
+  for(const auto v : ptr) {
+    EXPECT_TRUE(v >= 1 && v <= nb_threads);
+    --successes_ptr[v - 1];
+  }
+  for(auto it = index.cbegin(); it != index.cend(); ++it) {
+    SCOPED_TRACE(::testing::Message() << "i:" << (it - index.cbegin()));
+    ASSERT_LE(1, *it);
+    ASSERT_GE(nb_threads, *it);
+    --successes_ci[*it - 1];
+  }
+
+  for(const auto s : successes_ptr)
+    EXPECT_EQ((size_t)0, s);
+  for(const auto s : successes_ci)
+    EXPECT_EQ((size_t)0, s);
+} // CompactIndex.CAS
+
 } // empty namespace

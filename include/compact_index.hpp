@@ -58,8 +58,9 @@ struct compact_index {
 #endif
   }
 
-  typedef compact_iterator<IDX, W>       iterator;
-  typedef const_compact_iterator<IDX, W> const_iterator;
+  typedef compact_iterator<IDX, W>             iterator;
+  typedef const_compact_iterator<IDX, W>       const_iterator;
+  typedef compact_iterator<IDX, W, true>       mt_iterator; // Multi thread safe version
 
   compact_index(size_t s, unsigned int b) : size(s), bits(b), mem(alloc_mem(elements_to_words(size, bits))) { }
   explicit compact_index(size_t s) :
@@ -81,6 +82,10 @@ struct compact_index {
   iterator end() { return begin() + size; }
   const_iterator cbegin() const { return begin(); }
   const_iterator cend() const { return end(); }
+
+  // Multi thread safe iterator
+  mt_iterator mt_begin() { return mt_iterator(mem, bits, 0); }
+  mt_iterator mt_end() { return begin() + size; }
 
   IDX operator[](size_t i) const { return cbegin()[i]; }
 
