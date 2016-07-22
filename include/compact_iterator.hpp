@@ -105,24 +105,41 @@ static void set(IDX x, W* p, unsigned int b, unsigned int o) {
   W                   mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
   mask_store<W, TS>::store(p, mask, y << o);
   if(o + b > UB) {
-    unsigned int over = o + b - Wbits;
+    unsigned int over = o + b - UB;
     mask              = ~(W)0 >> (Wbits - over);
     mask_store<W, TS>::store(p + 1, mask, y >> (b - over));
   }
 }
 
-template<typename IDX, typename W>
+// Do a CAS at position p, offset o and number of bits b. Expect value
+// exp and set value x. It takes care of the tricky case when the
+// value pointed by (p, o, b) straddles 2 words. Then it require 2 CAS
+// and it is technically not lock free anymore. If the current thread
+// dies after setting the MSB to 1 during the first CAS, then the
+// location is "dead" and other threads maybe prevented from making
+// progress.
+template<typename IDX, typename W, unsigned int UB>
 static bool cas(const IDX x, const IDX exp, W* p, unsigned int b, unsigned int o) {
   static const size_t Wbits = bitsof(W);
-  W   mask  = (~(W)0 >> (Wbits - b)) << o;
-  if(!mask_store<W, true>::cas(p, mask, (W)x << o, (W)exp << o))
-    return false;
-  if(o + b > Wbits) {
-    unsigned int over = o + b - Wbits;
-    mask              = ~(W)0 >> (Wbits - over);
-    return mask_store<W, true>::cas(p + 1, mask, (W)x >> (b - over), (W)exp >> (b - over));
+  static const W      ubmask = ~(W)0 >> (Wbits - UB);
+  static_assert(UB < Wbits, "Used bits must strictly less than bit size of W for CAS.");
+  if(o + b <= UB) {
+    const W mask  = (~(W)0 >> (Wbits - b)) << o & ubmask;
+    return mask_store<W, true>::cas(p, mask, (W)x << o, (W)exp << o);
   }
-  return true;
+
+  // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
+  // 0. If failure, then return failure. If success, cas rest of value
+  // in next word, then set MSB back to 0.
+  static const W msb = (W)1 << (Wbits - 1);
+  W mask = (~(W)0 >> (Wbits - b)) << o;
+  if(!mask_store<W, true>::cas(p, mask, msb | ((W)x << o), ~msb & ((W)exp << o)))
+    return false;
+  const unsigned int over = o + b - UB;
+  mask                    = ~(W)0 >> (Wbits - over);
+  const bool         res  = mask_store<W, true>::cas(p + 1, mask, (W)x >> (b - over), (W)exp >> (b - over));
+  mask_store<W, true>::store(p, msb, 0);
+  return res;
 }
 
 template<class Derived, typename IDX, typename W, unsigned int UB>
@@ -438,7 +455,7 @@ void swap(setter<I, W, TS, UB> x, setter<I, W, TS, UB> y) {
 template<typename IDX, typename W = uint64_t, bool TS = false, unsigned int UB = bitsof(W)>
 class compact_iterator :
   public std::iterator<std::random_access_iterator_tag, IDX>,
-  public compact_iterator_imp::common<compact_iterator<IDX, W, TS>, IDX, W, UB>
+  public compact_iterator_imp::common<compact_iterator<IDX, W, TS, UB>, IDX, W, UB>
 {
   W*           ptr;
   unsigned int bits;            // number of bits in an index
@@ -471,7 +488,7 @@ public:
   // CAS val. Does NOT return existing value at pointer. Return true
   // if successful.
   inline bool cas(const IDX x, const IDX exp) {
-    return compact_iterator_imp::cas<IDX, W>(x, exp, ptr, bits, offset);
+    return compact_iterator_imp::cas<IDX, W, UB>(x, exp, ptr, bits, offset);
   }
 };
 
@@ -517,7 +534,7 @@ struct const_iterator_traits<const_compact_iterator<I, W, UB>> {
 
 template<typename I, typename W, bool TS, unsigned int UB>
 struct parallel_iterator_traits<compact_iterator<I, W, TS, UB>> {
-  typedef compact_iterator<I, W, true> type;
+  typedef compact_iterator<I, W, true, UB> type;
 
   // Does a cas on iterator x. Weak though: val is NOT updated to the
   // current value.

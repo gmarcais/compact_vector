@@ -51,6 +51,7 @@ const size_t CompactIndexTest<T>::size;
 TYPED_TEST_CASE_P(CompactIndexTest);
 
 TYPED_TEST_P(CompactIndexTest, Iterator) {
+  std::default_random_engine         generator;
   for(int i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
     const int bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
@@ -59,7 +60,6 @@ TYPED_TEST_P(CompactIndexTest, Iterator) {
     EXPECT_EQ(this->size, index.size);
     EXPECT_EQ(bits, index.bits);
 
-    std::default_random_engine         generator;
     std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
 
     std::vector<typename TypeParam::index_type> ary;
@@ -115,8 +115,37 @@ TYPED_TEST_P(CompactIndexTest, Iterator) {
   } // for(). Loop over this->bits
 }
 
+TYPED_TEST_P(CompactIndexTest, Swap) {
+  std::default_random_engine         generator;
+
+  for(int i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
+    const int                          bits = this->bits[i];
+    SCOPED_TRACE(::testing::Message() << "bits:" << bits);
+    typename TypeParam::compact_index  index(this->size, bits);
+    std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
+    const int                          v1   = uni(generator);
+    const int                          v2   = uni(generator);
+
+    auto it = index.begin();
+    auto jt = it + 10;
+    *it = v1;
+    *jt = v2;
+
+    EXPECT_EQ(v1, *it);
+    EXPECT_EQ(v2, *jt);
+    swap(*it, *jt);
+    EXPECT_EQ(v2, *it);
+    EXPECT_EQ(v1, *jt);
+
+    *it = *jt;
+    EXPECT_EQ(*it, *jt);
+    EXPECT_EQ(v1, *it);
+    EXPECT_EQ(v1, *jt);
+  } // for(). Loop over this->bits
+} // CompactIterator.Swap
+
 // Instantiate the typed tests with too many values
-REGISTER_TYPED_TEST_CASE_P(CompactIndexTest, Iterator);
+REGISTER_TYPED_TEST_CASE_P(CompactIndexTest, Iterator, Swap);
 typedef ::testing::Types<TypeValueContainer<int, uint64_t, false, bitsof(uint64_t)>,
                          TypeValueContainer<unsigned int, uint64_t, false, bitsof(uint64_t)>,
 
@@ -137,29 +166,6 @@ TEST(CompactIterator, Nullptr) {
 
   EXPECT_EQ(nullptr, it);
 } // CompactIndex.Pointer
-
-TEST(CompactIndex2, Swap) {
-  static const size_t       size = 1000;
-  static const unsigned int bits = 13;
-  const int                 v1   = 123;
-  const int                 v2   = 456;
-  compact_index<int>        index(size, bits);
-
-  auto it = index.begin();
-  auto jt = it + 10;
-  *it = v1;
-  *jt = v2;
-
-  EXPECT_NE(*it, *jt);
-  swap(*it, *jt);
-  EXPECT_EQ(v2, *it);
-  EXPECT_EQ(v1, *jt);
-
-  *it = *jt;
-  EXPECT_EQ(*it, *jt);
-  EXPECT_EQ(v1, *it);
-  EXPECT_EQ(v1, *jt);
-} // CompactIndex.Swap
 
 void set_values(int thid, int nb_threads, compact_index<int>::iterator ary, size_t size) {
   typedef compact_index_imp::parallel_iterator_traits<compact_index<int>::iterator>::type pary_type;
@@ -187,80 +193,80 @@ TEST(CompactIndex2, MultiThread) {
     EXPECT_EQ(1000, index[i]);
 } // CompactIndex.MultiThread
 
-// template<typename Iterator>
-// void cas_values(int val, Iterator ary, size_t size, size_t* nb_success) {
-//   // Try to set my thid in every location. Succeed only if already zero
-//   std::default_random_engine         gen;
-//   std::uniform_int_distribution<int> dist(10, 100);
+template<typename Iterator>
+void cas_values(int val, Iterator ary, size_t size, size_t* nb_success) {
+  // Try to set my thid in every location. Succeed only if already zero
+  std::default_random_engine         gen;
+  std::uniform_int_distribution<int> dist(10, 100);
 
-//   for(size_t i = 0; i < size; ++i, ++ary) {
-//     int expected = 0;
-//     *nb_success += compact_index_imp::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
-//     // if(*ary != val) {
-//     //   std::cerr << i << ' ' << *ary << ' ' << val << std::endl;
-//     //   asm("int3");
-//     // }
-//       //    assert(*ary == val);
-//     if(i % 128 == 0)
-//       std::this_thread::sleep_for(std::chrono::microseconds(dist(gen)));
-//   }
-// }
+  for(size_t i = 0; i < size; ++i, ++ary) {
+    unsigned int expected = 0;
+    *nb_success += compact_index_imp::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
+    // if(*ary != val) {
+    //   std::cerr << i << ' ' << *ary << ' ' << val << std::endl;
+    //   asm("int3");
+    // }
+      //    assert(*ary == val);
+    if(i % 128 == 0)
+      std::this_thread::sleep_for(std::chrono::microseconds(dist(gen)));
+  }
+}
 
-// TEST(CompactIndex, CAS) {
-//   const size_t size       = 1024 * 1024;
-//   const int    nb_threads = 2;
-//   const int    bits       = 3;
+TEST(CompactIndex2, CAS) {
+  const size_t size       = 1024 * 1024;
+  const int    nb_threads = 4;
+  const int    bits       = 3;
 
-//   std::vector<int> ptr(size, 0);
-//   compact_index<int> index(size, bits);
+  std::vector<unsigned int> ptr(size, 0);
+  typedef compact_index<unsigned int, uint64_t, bitsof(uint64_t) - 1> compact_index_type;
+  typedef compact_index_type::mt_iterator compact_iterator_type;
+  compact_index_type index(size, bits);
 
-//   std::vector<std::thread> threads;
+  std::vector<std::thread> threads;
 
-//   // Cas values on int*
-//   std::vector<size_t> successes_ptr(nb_threads, 0);
-//   for(int i = 0; i < nb_threads; ++i) {
-//     threads.push_back(std::thread(cas_values<int*>, i + 1, ptr.data(), size, &successes_ptr[i]));
-//   }
-//   for(int i = 0; i < nb_threads; ++i)
-//     threads[i].join();
+  // Cas values on int*
+  std::vector<size_t> successes_ptr(nb_threads, 0);
+  for(int i = 0; i < nb_threads; ++i) {
+    threads.push_back(std::thread(cas_values<unsigned int*>, i + 1, ptr.data(), size, &successes_ptr[i]));
+  }
+  for(int i = 0; i < nb_threads; ++i)
+    threads[i].join();
 
-//   threads.clear();
-//   // CAS values on compact iterator
-//   std::vector<size_t> successes_ci(nb_threads, 0);
-//   for(int i = 0; i < nb_threads; ++i) {
-//     threads.push_back(std::thread(cas_values<compact_index<int>::mt_iterator>, i + 1, index.mt_begin(), size, &successes_ci[i]));
-//   }
-//   for(int i = 0; i < nb_threads; ++i)
-//     threads[i].join();
+  threads.clear();
+  // CAS values on compact iterator
+  std::vector<size_t> successes_ci(nb_threads, 0);
+  for(int i = 0; i < nb_threads; ++i) {
+    threads.push_back(std::thread(cas_values<compact_iterator_type>, i + 1, index.mt_begin(), size, &successes_ci[i]));
+  }
+  for(int i = 0; i < nb_threads; ++i)
+    threads[i].join();
 
-//   size_t total_successes_ptr = 0;
-//   for(const auto s : successes_ptr) {
-//     std::cout << s << '\n';
-//     total_successes_ptr += s;
-//   }
-//   size_t total_successes_ci  = 0;
-//   for(const auto s : successes_ci) {
-//     std::cout << s << '\n';
-//     total_successes_ci += s;
-//   }
+  size_t total_successes_ptr = 0;
+  for(const auto s : successes_ptr) {
+    total_successes_ptr += s;
+  }
+  size_t total_successes_ci  = 0;
+  for(const auto s : successes_ci) {
+    total_successes_ci += s;
+  }
 
-//   EXPECT_EQ(size, total_successes_ptr);
-//   EXPECT_EQ(size, total_successes_ci);
-//   for(const auto v : ptr) {
-//     EXPECT_TRUE(v >= 1 && v <= nb_threads);
-//     --successes_ptr[v - 1];
-//   }
-//   for(auto it = index.cbegin(); it != index.cend(); ++it) {
-//     SCOPED_TRACE(::testing::Message() << "i:" << (it - index.cbegin()));
-//     ASSERT_LE(1, *it);
-//     ASSERT_GE(nb_threads, *it);
-//     --successes_ci[*it - 1];
-//   }
+  EXPECT_EQ(size, total_successes_ptr);
+  EXPECT_EQ(size, total_successes_ci);
+  for(const auto v : ptr) {
+    EXPECT_TRUE(v >= 1 && v <= nb_threads);
+    --successes_ptr[v - 1];
+  }
+  for(auto it = index.cbegin(); it != index.cend(); ++it) {
+    SCOPED_TRACE(::testing::Message() << "i:" << (it - index.cbegin()));
+    ASSERT_LE(1, *it);
+    ASSERT_GE(nb_threads, *it);
+    --successes_ci[*it - 1];
+  }
 
-//   for(const auto s : successes_ptr)
-//     EXPECT_EQ((size_t)0, s);
-//   for(const auto s : successes_ci)
-//     EXPECT_EQ((size_t)0, s);
-// } // CompactIndex.CAS
+  for(const auto s : successes_ptr)
+    EXPECT_EQ((size_t)0, s);
+  for(const auto s : successes_ci)
+    EXPECT_EQ((size_t)0, s);
+} // CompactIndex.CAS
 
 } // empty namespace
