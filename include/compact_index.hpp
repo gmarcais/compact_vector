@@ -15,8 +15,10 @@
 
 #include "compact_iterator.hpp"
 
-template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof(W)>
-struct compact_index {
+namespace compact {
+
+template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof<W>::val>
+struct index {
   const size_t       size;      // Size in number of element
   const unsigned int bits;      // Number of bits in an element
   W*                 mem;
@@ -27,7 +29,7 @@ struct compact_index {
 
   // Number of bits required for indices/values in the range [0, s).
   static unsigned int required_bits(size_t s) {
-    unsigned int res = bitsof(size_t) - 1 - clz(s);
+    unsigned int res = bitsof<size_t>::val - 1 - clz(s);
     res += (s > ((size_t)1 << res)) + (std::is_signed<IDX>::value ? 1 : 0);
     return res;
   }
@@ -62,17 +64,17 @@ struct compact_index {
 #endif
   }
 
-  typedef compact_iterator<IDX, W, false, UB> iterator;
-  typedef const_compact_iterator<IDX, W, UB>  const_iterator;
-  typedef compact_iterator<IDX, W, true, UB>  mt_iterator; // Multi thread safe version
+  typedef compact::iterator<IDX, W, false, UB> iterator;
+  typedef compact::const_iterator<IDX, W, UB>  const_iterator;
+  typedef compact::iterator<IDX, W, true, UB>  mt_iterator; // Multi thread safe version
 
-  compact_index(size_t s, unsigned int b) : size(s), bits(b), mem(alloc_mem(elements_to_words(size, bits))) { }
-  explicit compact_index(size_t s) :
+  index(size_t s, unsigned int b) : size(s), bits(b), mem(alloc_mem(elements_to_words(size, bits))) { }
+  explicit index(size_t s) :
     size(s),
     bits(required_bits(s)),
     mem(alloc_mem(elements_to_words(size, bits)))
   { }
-  ~compact_index() {
+  ~index() {
 #ifdef HAVE_NUMA_H
     numa_free(mem, sizeof(W) * elements_to_words(size, bits));
 #else
@@ -97,5 +99,7 @@ struct compact_index {
   const W* get() const { return mem; }
   size_t bytes() const { return sizeof(W) * elements_to_words(size, bits); }
 };
+
+} // namespace compact
 
 #endif /* __COMPACT_INDEX_H__ */

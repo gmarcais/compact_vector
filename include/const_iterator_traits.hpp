@@ -4,7 +4,8 @@
 #include <type_traits>
 
 
-namespace compact_index_imp {
+namespace compact {
+namespace index_imp {
 template<typename T> struct const_iterator_traits { };
 
 template<typename T>
@@ -16,6 +17,7 @@ template<typename T>
 struct const_iterator_traits<const T*> {
   typedef const T* type;
 };
-} // namespace compact_index_imp
+} // namespace index_imp
+} // namespace compact
 
 #endif /* __CONST_ITERATOR_TRAITS_H__ */

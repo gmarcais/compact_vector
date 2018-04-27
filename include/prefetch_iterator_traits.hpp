@@ -3,7 +3,8 @@
 
 #include <type_traits>
 
-namespace compact_index_imp {
+namespace compact {
+namespace index_imp {
 // Traits to prefetch an iterator
 
 template<typename T> struct prefetch_iterator_traits { };
@@ -23,6 +24,7 @@ struct prefetch_iterator_traits<const T*> {
   template<int level = 0>
   static void write(const T* ptr) { __builtin_prefetch((void*)ptr, 1, level); }
 };
-} // compact_index_imp
+} // namespace index_imp
+} // namespace compact
 
 #endif /* __PREFETCH_TRAITS_H__ */

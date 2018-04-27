@@ -12,15 +12,15 @@ namespace {
 TEST(CompactIndex, RequiredBits) {
   for(unsigned int i = 1; i < sizeof(size_t) * 8 - 1; ++i) {
     size_t s = (size_t)1 << i;
-    EXPECT_EQ(i,     compact_index<uint64_t>::required_bits(s));
-    EXPECT_EQ(i + 1, compact_index<int64_t>::required_bits(s));
-    EXPECT_EQ(i + 1, compact_index<uint64_t>::required_bits(s + 1));
-    EXPECT_EQ(i + 2, compact_index<int64_t>::required_bits(s + 1));
+    EXPECT_EQ(i,     compact::index<uint64_t>::required_bits(s));
+    EXPECT_EQ(i + 1, compact::index<int64_t>::required_bits(s));
+    EXPECT_EQ(i + 1, compact::index<uint64_t>::required_bits(s + 1));
+    EXPECT_EQ(i + 2, compact::index<int64_t>::required_bits(s + 1));
   }
 } // CompactIndex.RequiredBits
 
 //
-// Testing compact_index for different index type, word type, bits and used bits value.
+// Testing compact::index for different index type, word type, bits and used bits value.
 //
 
 // Class containing the different parameters
@@ -28,7 +28,7 @@ template<typename IDX, typename W, bool TS, unsigned int UB>
 struct TypeValueContainer {
   typedef IDX                       index_type;
   typedef W                         word_type;
-  typedef compact_index<IDX, W, UB> compact_index_type;
+  typedef compact::index<IDX, W, UB> compact_index_type;
   static const bool                 thread_safe = TS;
   static const unsigned int         used_bits   = UB;
 };
@@ -146,29 +146,29 @@ TYPED_TEST_P(CompactIndexTest, Swap) {
 
 // Instantiate the typed tests with too many values
 REGISTER_TYPED_TEST_CASE_P(CompactIndexTest, Iterator, Swap);
-typedef ::testing::Types<TypeValueContainer<int, uint64_t, false, bitsof(uint64_t)>,
-                         TypeValueContainer<unsigned int, uint64_t, false, bitsof(uint64_t)>,
+typedef ::testing::Types<TypeValueContainer<int, uint64_t, false, compact::bitsof<uint64_t>::val>,
+                         TypeValueContainer<unsigned int, uint64_t, false, compact::bitsof<uint64_t>::val>,
 
                          // Same thing with uint32 word type
-                         TypeValueContainer<int, uint32_t, false, bitsof(uint32_t)>,
-                         TypeValueContainer<unsigned int, uint32_t, false, bitsof(uint32_t)>,
+                         TypeValueContainer<int, uint32_t, false, compact::bitsof<uint32_t>::val>,
+                         TypeValueContainer<unsigned int, uint32_t, false, compact::bitsof<uint32_t>::val>,
 
                          // Same tests, but don't use every bits in the words
-                         TypeValueContainer<int, uint64_t, false, bitsof(uint64_t) - 1>,
-                         TypeValueContainer<unsigned int, uint64_t, false, bitsof(uint64_t) - 1>,
-                         TypeValueContainer<int, uint32_t, false, bitsof(uint32_t) - 1>,
-                         TypeValueContainer<unsigned int, uint32_t, false, bitsof(uint32_t) - 1>
+                         TypeValueContainer<int, uint64_t, false, compact::bitsof<uint64_t>::val - 1>,
+                         TypeValueContainer<unsigned int, uint64_t, false, compact::bitsof<uint64_t>::val - 1>,
+                         TypeValueContainer<int, uint32_t, false, compact::bitsof<uint32_t>::val - 1>,
+                         TypeValueContainer<unsigned int, uint32_t, false, compact::bitsof<uint32_t>::val - 1>
                          > compact_index_types;
 INSTANTIATE_TYPED_TEST_CASE_P(CompactIndex, CompactIndexTest, compact_index_types);
 
 TEST(CompactIterator, Nullptr) {
-  compact_iterator<int> it = nullptr;
+  compact::iterator<int> it = nullptr;
 
   EXPECT_EQ(nullptr, it);
 } // CompactIndex.Pointer
 
-void set_values(int thid, int nb_threads, compact_index<int>::iterator ary, size_t size) {
-  typedef compact_index_imp::parallel_iterator_traits<compact_index<int>::iterator>::type pary_type;
+void set_values(int thid, int nb_threads, compact::index<int>::iterator ary, size_t size) {
+  typedef compact::index_imp::parallel_iterator_traits<compact::index<int>::iterator>::type pary_type;
   pary_type pary(ary);
 
   for(int i = 0; i < 1000; ++i)
@@ -180,7 +180,7 @@ TEST(CompactIndex2, MultiThread) {
   const unsigned int bits       = 13;
   const size_t       size       = 64;
   const int          nb_threads = 4;
-  compact_index<int> index(size, bits);
+  compact::index<int> index(size, bits);
 
   std::fill_n(index.begin(), size, 0);
   std::vector<std::thread> threads;
@@ -201,7 +201,7 @@ void cas_values(int val, Iterator ary, size_t size, size_t* nb_success) {
 
   for(size_t i = 0; i < size; ++i, ++ary) {
     unsigned int expected = 0;
-    *nb_success += compact_index_imp::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
+    *nb_success += compact::index_imp::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
     // if(*ary != val) {
     //   std::cerr << i << ' ' << *ary << ' ' << val << std::endl;
     //   asm("int3");
@@ -218,7 +218,7 @@ TEST(CompactIndex2, CAS) {
   const int    bits       = 3;
 
   std::vector<unsigned int> ptr(size, 0);
-  typedef compact_index<unsigned int, uint64_t, bitsof(uint64_t) - 1> compact_index_type;
+  typedef compact::index<unsigned int, uint64_t, compact::bitsof<uint64_t>::val - 1> compact_index_type;
   typedef compact_index_type::mt_iterator compact_iterator_type;
   compact_index_type index(size, bits);
 

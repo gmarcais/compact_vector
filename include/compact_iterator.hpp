@@ -11,10 +11,15 @@
 #include "parallel_iterator_traits.hpp"
 #include "prefetch_iterator_traits.hpp"
 
-// Number of bits in type t
-#define bitsof(t) (sizeof(t) * CHAR_BIT)
 
-// Compact iterator definition. A 'compact_iterator<int> p' would
+namespace compact {
+// Number of bits in type t
+template<typename T>
+struct bitsof {
+  static constexpr size_t val = sizeof(T) * CHAR_BIT;
+};
+
+// Compact iterator definition. A 'iterator<int> p' would
 // behave identically to an 'int*', except that the underlying storage
 // is bit-packed. The actual number of bits used by each element is
 // specified at construction.
@@ -30,21 +35,21 @@
 //   in 2 different thread is safe.
 //
 // * UB is the number of Used Bits in each word. We must have UB <=
-//   bitsof(W). Normally UB == bitsof(W), but for some applications,
+//   bitsof<W>::val. Normally UB == bitsof<W>::val, but for some applications,
 //   saving a few bits in each word can be useful (for example to
 //   provide the compare and swap operation CAS).
 template<typename IDX, typename W, unsigned int UB>
-class const_compact_iterator;
+class const_iterator;
 template<typename IDX, typename W, bool TS, unsigned int UB>
-class compact_iterator;
+class iterator;
 
-namespace compact_iterator_imp {
+namespace iterator_imp {
 template<typename IDX, typename W, unsigned int UB>
 static IDX get(const W* p, unsigned int b, unsigned int o) {
-  static const size_t Wbits  = bitsof(W);
-  static const W      ubmask = ~(W)0 >> (Wbits - UB);
-  W                   mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
-  IDX                 res    = (*p & mask) >> o;
+  static constexpr size_t Wbits  = bitsof<W>::val;
+  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+  W                       mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
+  IDX                     res    = (*p & mask) >> o;
   if(o + b > UB) {
     unsigned int over  = o + b - UB;
     mask               = ~(W)0 >> (Wbits - over);
@@ -97,12 +102,12 @@ struct mask_store<W, true> {
   }
 };
 
-template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof(W)>
+template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof<W>::val>
 static void set(IDX x, W* p, unsigned int b, unsigned int o) {
-  static const size_t Wbits  = bitsof(W);
-  static const W      ubmask = ~(W)0 >> (Wbits - UB);
-  const W             y      = x;
-  W                   mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
+  static constexpr size_t Wbits  = bitsof<W>::val;
+  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+  const W                 y      = x;
+  W                       mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
   mask_store<W, TS>::store(p, mask, y << o);
   if(o + b > UB) {
     unsigned int over = o + b - UB;
@@ -120,8 +125,8 @@ static void set(IDX x, W* p, unsigned int b, unsigned int o) {
 // progress.
 template<typename IDX, typename W, unsigned int UB>
 static bool cas(const IDX x, const IDX exp, W* p, unsigned int b, unsigned int o) {
-  static const size_t Wbits = bitsof(W);
-  static const W      ubmask = ~(W)0 >> (Wbits - UB);
+  static constexpr size_t Wbits  = bitsof<W>::val;
+  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
   static_assert(UB < Wbits, "Used bits must strictly less than bit size of W for CAS.");
   if(o + b <= UB) {
     const W mask  = (~(W)0 >> (Wbits - b)) << o & ubmask;
@@ -131,7 +136,7 @@ static bool cas(const IDX x, const IDX exp, W* p, unsigned int b, unsigned int o
   // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
   // 0. If failure, then return failure. If success, cas rest of value
   // in next word, then set MSB back to 0.
-  static const W msb = (W)1 << (Wbits - 1);
+  static constexpr W msb = (W)1 << (Wbits - 1);
   W mask = (~(W)0 >> (Wbits - b)) << o;
   if(!mask_store<W, true>::cas(p, mask, msb | ((W)x << o), ~msb & ((W)exp << o)))
     return false;
@@ -151,7 +156,7 @@ public:
   }
 
 protected:
-  static const unsigned int Wbits = bitsof(W);
+  static constexpr unsigned int Wbits = bitsof<W>::val;
   // UB is the number of bits actually used in a word.
   static_assert(UB <= Wbits,
                 "Number of used bits must be less than number of bits in a word");
@@ -160,7 +165,7 @@ protected:
 
 public:
   typedef typename std::iterator<std::random_access_iterator_tag, IDX>::difference_type difference_type;
-  static const unsigned int used_bits = UB;
+  static constexpr unsigned int used_bits = UB;
 
   Derived& operator=(const Derived& rhs) {
     Derived& self = *static_cast<Derived*>(this);
@@ -339,11 +344,11 @@ public:
 
 template<typename W, int I = sizeof(W)>
 struct swap_word_mask {
-  static const W value = swap_word_mask<W, I / 2>::value << (4 * I) | swap_word_mask<W, I / 2>::value;
+  static constexpr W value = swap_word_mask<W, I / 2>::value << (4 * I) | swap_word_mask<W, I / 2>::value;
 };
 template<typename W>
 struct swap_word_mask<W, 1> {
-  static const W value = 0x55;
+  static constexpr W value = 0x55;
 };
 
 template<typename W>
@@ -382,7 +387,7 @@ struct word_bits<X, 0, values...> : size_t_ary<(size_t)0, values...> {};
 template<typename Iterator>
 bool lexicographical_compare_n(Iterator first1, const size_t len1,
                                Iterator first2, const size_t len2) {
-  static const unsigned int UB = Iterator::used_bits;
+  static constexpr unsigned int UB = Iterator::used_bits;
 
   const auto bits            = first1.get_bits();
   auto       left            = std::min(len1, len2) * bits;
@@ -418,13 +423,13 @@ std::ostream& operator<<(std::ostream& os, const common<D, I, W, U>& rhs) {
   return rhs.print(os);
 }
 
-template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof(W)>
+template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof<W>::val>
 class setter {
   W*           ptr;
   unsigned int bits;            // number of bits in an index
   unsigned int offset;
 
-  typedef compact_iterator<IDX, W, TS, UB> iterator;
+  typedef compact::iterator<IDX, W, TS, UB> iterator;
 public:
   setter(W* p, int b, int o) : ptr(p), bits(b), offset(o) { }
   operator IDX() const { return get<IDX, W, UB>(ptr, bits, offset); }
@@ -438,7 +443,7 @@ public:
   }
   iterator operator&() { return iterator(ptr, bits, offset); }
   inline bool cas(const IDX x, const IDX exp) {
-    return compact_iterator_imp::cas<IDX, W>(x, exp, ptr, bits, offset);
+    return iterator_imp::cas<IDX, W>(x, exp, ptr, bits, offset);
   }
 };
 
@@ -449,23 +454,23 @@ void swap(setter<I, W, TS, UB> x, setter<I, W, TS, UB> y) {
   y = t;
 }
 
-} // namespace compact_iterator_imp
+} // namespace iterator_imp
 
-template<typename IDX, typename W = uint64_t, bool TS = false, unsigned int UB = bitsof(W)>
-class compact_iterator :
+template<typename IDX, typename W = uint64_t, bool TS = false, unsigned int UB = bitsof<W>::val>
+class iterator :
   public std::iterator<std::random_access_iterator_tag, IDX>,
-  public compact_iterator_imp::common<compact_iterator<IDX, W, TS, UB>, IDX, W, UB>
+  public iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>
 {
   W*           ptr;
   unsigned int bits;            // number of bits in an index
   unsigned int offset;
 
-  friend class compact_iterator<IDX, W, !TS, UB>;
-  friend class const_compact_iterator<IDX, W, UB>;
-  friend class compact_iterator_imp::common<compact_iterator<IDX, W, TS, UB>, IDX, W, UB>;
-  friend class compact_iterator_imp::common<const_compact_iterator<IDX, W, UB>, IDX, W, UB>;
+  friend class iterator<IDX, W, !TS, UB>;
+  friend class const_iterator<IDX, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>;
 
-  typedef compact_iterator_imp::setter<IDX, W, TS, UB> setter_type;
+  typedef iterator_imp::setter<IDX, W, TS, UB> setter_type;
   typedef std::iterator<std::random_access_iterator_tag, IDX> super;
 public:
   typedef typename super::value_type      value_type;
@@ -473,11 +478,11 @@ public:
   typedef IDX idx_type;
   typedef W   word_type;
 
-  compact_iterator() = default;
-  compact_iterator(W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
+  iterator() = default;
+  iterator(W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
   template<bool TTS>
-  compact_iterator(const compact_iterator<IDX, W, TTS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
-  compact_iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
+  iterator(const iterator<IDX, W, TTS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
+  iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
 
   setter_type operator*() { return setter_type(ptr, bits, offset); }
   setter_type operator[](const difference_type n) const {
@@ -487,23 +492,23 @@ public:
   // CAS val. Does NOT return existing value at pointer. Return true
   // if successful.
   inline bool cas(const IDX x, const IDX exp) {
-    return compact_iterator_imp::cas<IDX, W, UB>(x, exp, ptr, bits, offset);
+    return iterator_imp::cas<IDX, W, UB>(x, exp, ptr, bits, offset);
   }
 };
 
-template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof(W)>
-class const_compact_iterator :
+template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof<W>::val>
+class const_iterator :
   public std::iterator<std::random_access_iterator_tag, const IDX>,
-  public compact_iterator_imp::common<const_compact_iterator<IDX, W, UB>, IDX, W, UB>
+  public iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>
 {
   const W*     ptr;
   unsigned int bits;            // number of bits in an index
   unsigned int offset;
 
-  friend class compact_iterator<IDX, W>;
-  friend class compact_iterator_imp::common<compact_iterator<IDX, W, true, UB>, IDX, W, UB>;
-  friend class compact_iterator_imp::common<compact_iterator<IDX, W, false, UB>, IDX, W, UB>;
-  friend class compact_iterator_imp::common<const_compact_iterator<IDX, W, UB>, IDX, W, UB>;
+  friend class iterator<IDX, W>;
+  friend class iterator_imp::common<iterator<IDX, W, true, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, W, false, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>;
 
   typedef std::iterator<std::random_access_iterator_tag, IDX> super;
 public:
@@ -513,27 +518,27 @@ public:
   typedef W   word_type;
 
 
-  const_compact_iterator() = default;
-  const_compact_iterator(const W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
-  const_compact_iterator(const const_compact_iterator& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
+  const_iterator() = default;
+  const_iterator(const W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
+  const_iterator(const const_iterator& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
   template<bool TS>
-  const_compact_iterator(const compact_iterator<IDX, W, TS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
-  const_compact_iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
+  const_iterator(const iterator<IDX, W, TS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
+  const_iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
 };
 
-namespace compact_index_imp {
+namespace index_imp {
 template<typename I, typename W, bool TS, unsigned int UB>
-struct const_iterator_traits<compact_iterator<I, W, TS, UB>> {
-  typedef const_compact_iterator<I, W, UB> type;
+struct const_iterator_traits<iterator<I, W, TS, UB>> {
+  typedef const_iterator<I, W, UB> type;
 };
 template<typename I, typename W, unsigned int UB>
-struct const_iterator_traits<const_compact_iterator<I, W, UB>> {
-  typedef const_compact_iterator<I, W, UB> type;
+struct const_iterator_traits<const_iterator<I, W, UB>> {
+  typedef const_iterator<I, W, UB> type;
 };
 
 template<typename I, typename W, bool TS, unsigned int UB>
-struct parallel_iterator_traits<compact_iterator<I, W, TS, UB>> {
-  typedef compact_iterator<I, W, true, UB> type;
+struct parallel_iterator_traits<iterator<I, W, TS, UB>> {
+  typedef iterator<I, W, true, UB> type;
 
   // Does a cas on iterator x. Weak though: val is NOT updated to the
   // current value.
@@ -543,27 +548,29 @@ struct parallel_iterator_traits<compact_iterator<I, W, TS, UB>> {
 };
 
 template<typename I, typename W, unsigned int UB>
-struct parallel_iterator_traits<const_compact_iterator<I, W, UB>> {
-  typedef const_compact_iterator<I, W> type;
+struct parallel_iterator_traits<const_iterator<I, W, UB>> {
+  typedef const_iterator<I, W> type;
 };
 
 template<typename I, typename W, bool TS, unsigned int UB>
-struct prefetch_iterator_traits<compact_iterator<I, W, TS, UB> > {
+struct prefetch_iterator_traits<iterator<I, W, TS, UB> > {
   template<int level = 0>
-  static void read(const compact_iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template read<level>(p.get_ptr()); }
+  static void read(const iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template read<level>(p.get_ptr()); }
   template<int level = 0>
-  static void write(const compact_iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template write<level>(p.get_ptr()); }
+  static void write(const iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template write<level>(p.get_ptr()); }
 
 };
 
 template<typename I, typename W, unsigned int UB>
-struct prefetch_iterator_traits<const_compact_iterator<I, W, UB> > {
+struct prefetch_iterator_traits<const_iterator<I, W, UB> > {
   template<int level = 0>
-  static void read(const const_compact_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template read<level>(p.get_ptr()); }
+  static void read(const const_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template read<level>(p.get_ptr()); }
   template<int level = 0>
-  static void write(const const_compact_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template write<level>(p.get_ptr()); }
+  static void write(const const_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template write<level>(p.get_ptr()); }
 
 };
 }
+
+} // namespace compact
 
 #endif /* __COMPACT_ITERATOR_H__ */
