@@ -125,6 +125,7 @@ static void set(IDX x, W* p, unsigned int b, unsigned int o) {
 // progress.
 template<typename IDX, typename W, unsigned int UB>
 static bool cas(const IDX x, const IDX exp, W* p, unsigned int b, unsigned int o) {
+  static_assert(UB < bitsof<W>::val, "The CAS operation is valid for a cas_vector (used bits less than bits in word)");
   static constexpr size_t Wbits  = bitsof<W>::val;
   static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
   static_assert(UB < Wbits, "Used bits must strictly less than bit size of W for CAS.");

@@ -26,11 +26,11 @@ TEST(CompactIndex, RequiredBits) {
 // Class containing the different parameters
 template<typename IDX, typename W, bool TS, unsigned int UB>
 struct TypeValueContainer {
-  typedef IDX                       index_type;
-  typedef W                         word_type;
-  typedef compact::vector<IDX, W, std::allocator<W>, UB> compact_index_type;
-  static const bool                 thread_safe = TS;
-  static const unsigned int         used_bits   = UB;
+  typedef IDX                                                          index_type;
+  typedef W                                                            word_type;
+  typedef compact::index_imp::index<IDX, W, std::allocator<W>, UB, TS> compact_index_type;
+  static const bool                                                    thread_safe = TS;
+  static const unsigned int                                            used_bits   = UB;
 };
 template<typename IDX, typename W, bool TS, unsigned int UB>
 const bool TypeValueContainer<IDX,W,TS,UB>::thread_safe;
@@ -218,8 +218,8 @@ TEST(CompactIndex2, CAS) {
   const int    bits       = 3;
 
   std::vector<unsigned int> ptr(size, 0);
-  typedef compact::vector<unsigned int, uint64_t, std::allocator<uint64_t>, compact::bitsof<uint64_t>::val - 1> compact_index_type;
-  typedef compact_index_type::mt_iterator compact_iterator_type;
+  typedef compact::cas_vector<unsigned int> compact_index_type;
+  typedef compact_index_type::iterator compact_iterator_type;
   compact_index_type index(size, bits);
 
   std::vector<std::thread> threads;

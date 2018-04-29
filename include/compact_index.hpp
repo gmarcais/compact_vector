@@ -15,7 +15,7 @@ namespace compact {
 
 namespace index_imp {
 
-template<typename D, typename IDX, typename W, typename Allocator, unsigned int UB, bool TS>
+template<typename IDX, typename W, typename Allocator, unsigned int UB, bool TS>
 class index {
   const size_t       m_size;      // Size in number of element
   const unsigned int m_bits;      // Number of bits in an element
@@ -35,7 +35,7 @@ public:
 
   static size_t elements_to_words(size_t size, unsigned int bits) {
     size_t total_bits = size * bits;
-    return total_bits / D::used_bits + (total_bits % D::used_bits != 0);
+    return total_bits / UB + (total_bits % UB != 0);
   }
 
   typedef compact::iterator<IDX, W, TS, UB> iterator;
@@ -46,8 +46,8 @@ public:
     : m_size(s)
     , m_bits(b)
     , mem(new W[elements_to_words(m_size, m_bits)]) {
-    static_assert(D::used_bits <= bitsof<W>::val, "used_bits must be less or equal to the number of bits in the word_type");
-    if(b > D::used_bits)
+    static_assert(UB <= bitsof<W>::val, "used_bits must be less or equal to the number of bits in the word_type");
+    if(b > UB)
       throw std::out_of_range("Number of bits larger than usable bits");
   }
   explicit index(size_t s)
@@ -79,20 +79,18 @@ public:
 };
 } // namespace index_imp
 
-template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>,
-         unsigned int UB = bitsof<W>::val>
+template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
 class vector
-  : public index_imp::index<vector<IDX,W,Allocator,UB>, IDX, W, Allocator, UB, false>
+  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val, false>
 {
-  typedef index_imp::index<vector<IDX,W,Allocator,UB>, IDX, W, Allocator, UB, false> super;
+  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, false> super;
 public:
   typedef IDX                                  value_type;
   typedef W                                    word_type;
-  static constexpr unsigned int                used_bits = UB;
+  static constexpr unsigned int                used_bits = bitsof<W>::val;
 
   typedef typename super::iterator iterator;
   typedef typename super::const_iterator const_iterator;
-  typedef typename super::mt_iterator mt_iterator;
 
   vector(size_t s, size_t b)
     : super(s, b)
@@ -102,25 +100,45 @@ public:
   { }
 };
 
-template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>,
-         unsigned int UB = bitsof<W>::val>
-class mt_vector
-  : public index_imp::index<vector<IDX,W,Allocator,UB>, IDX, W, Allocator, UB, true>
+//unsigned int UB = bitsof<W>::val>
+template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
+class ts_vector
+  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val, true>
 {
-  typedef index_imp::index<vector<IDX,W,Allocator,UB>, IDX, W, Allocator, UB, true> super;
+  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, true> super;
 public:
   typedef IDX                                  value_type;
   typedef W                                    word_type;
-  static constexpr unsigned int                used_bits = UB;
+  static constexpr unsigned int                used_bits = bitsof<W>::val;
 
   typedef typename super::iterator iterator;
   typedef typename super::const_iterator const_iterator;
-  typedef typename super::mt_iterator mt_iterator;
 
-  mt_vector(size_t s, size_t b)
+  ts_vector(size_t s, size_t b)
     : super(s, b)
   { }
-  mt_vector(size_t s)
+  ts_vector(size_t s)
+    : super(s)
+  { }
+};
+
+template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
+class cas_vector
+  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val - 1, true>
+{
+  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val - 1, true> super;
+public:
+  typedef IDX                                  value_type;
+  typedef W                                    word_type;
+  static constexpr unsigned int                used_bits = bitsof<W>::val - 1;
+
+  typedef typename super::iterator iterator;
+  typedef typename super::const_iterator const_iterator;
+
+  cas_vector(size_t s, size_t b)
+    : super(s, b)
+  { }
+  cas_vector(size_t s)
     : super(s)
   { }
 };
