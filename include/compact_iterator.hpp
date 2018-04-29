@@ -471,13 +471,13 @@ class iterator :
   friend class iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>;
   friend class iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>;
 
-  typedef iterator_imp::setter<IDX, W, TS, UB> setter_type;
   typedef std::iterator<std::random_access_iterator_tag, IDX> super;
 public:
-  typedef typename super::value_type      value_type;
-  typedef typename super::difference_type difference_type;
-  typedef IDX idx_type;
-  typedef W   word_type;
+  typedef typename super::value_type                          value_type;
+  typedef typename super::difference_type                     difference_type;
+  typedef IDX                                                 idx_type;
+  typedef W                                                   word_type;
+  typedef iterator_imp::setter<IDX, W, TS, UB>                setter_type;
 
   iterator() = default;
   iterator(W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }

@@ -85,12 +85,20 @@ class vector
 {
   typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, false> super;
 public:
-  typedef IDX                                  value_type;
-  typedef W                                    word_type;
-  static constexpr unsigned int                used_bits = bitsof<W>::val;
-
-  typedef typename super::iterator iterator;
-  typedef typename super::const_iterator const_iterator;
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::setter_type        reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+  static constexpr unsigned int                 used_bits = bitsof<W>::val;
 
   vector(size_t s, size_t b)
     : super(s, b)
@@ -107,12 +115,20 @@ class ts_vector
 {
   typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, true> super;
 public:
-  typedef IDX                                  value_type;
-  typedef W                                    word_type;
-  static constexpr unsigned int                used_bits = bitsof<W>::val;
-
-  typedef typename super::iterator iterator;
-  typedef typename super::const_iterator const_iterator;
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::setter_type        reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+  static constexpr unsigned int                 used_bits = bitsof<W>::val;
 
   ts_vector(size_t s, size_t b)
     : super(s, b)
@@ -128,12 +144,20 @@ class cas_vector
 {
   typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val - 1, true> super;
 public:
-  typedef IDX                                  value_type;
-  typedef W                                    word_type;
-  static constexpr unsigned int                used_bits = bitsof<W>::val - 1;
-
-  typedef typename super::iterator iterator;
-  typedef typename super::const_iterator const_iterator;
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::setter_type        reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+  static constexpr unsigned int                 used_bits = bitsof<W>::val - 1;
 
   cas_vector(size_t s, size_t b)
     : super(s, b)
