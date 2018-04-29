@@ -225,7 +225,6 @@ class const_fortyeight_iterator
 
 // Type traits
 namespace compact {
-namespace index_imp {
 template<typename I>
 struct const_iterator_traits<fortyeight_iterator<I>> {
   typedef const_fortyeight_iterator<I> type;
@@ -235,7 +234,6 @@ template<typename I>
 struct const_iterator_traits<const_fortyeight_iterator<I>> {
   typedef const_fortyeight_iterator<I> type;
 };
-} // namespace index_imp
 } // namespace compact
 
 #endif /* __48BIT_ITERATOR_H__ */

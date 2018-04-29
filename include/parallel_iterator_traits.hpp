@@ -4,7 +4,6 @@
 #include <type_traits>
 
 namespace compact {
-namespace index_imp {
 // Traits for a parallel iterator. Very weak requirements that if two
 // threads hold iterators to two different location, then the pointers
 // can be read and stored.
@@ -28,7 +27,6 @@ template<typename T>
 struct parallel_iterator_traits<const T*> {
   typedef const T* type;
 };
-} // namespace index_imp
 } // namespace compact
 
 #endif /* __PARALLEL_POINTER_TRAITS_H__ */

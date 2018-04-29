@@ -24,8 +24,9 @@ struct bitsof {
 // is bit-packed. The actual number of bits used by each element is
 // specified at construction.
 //
-// * IDX is the type of index, i.e., the type of the integer pointed
-//   to, as seen from the outside. It behaves like a pointer to IDX.
+// * IDX is the type of the integral type, i.e., the type of the
+//   integer pointed to, as seen from the outside. It behaves like a
+//   pointer to IDX.
 //
 // * W is the word type used internally. We must have sizeof(IDX) <=
 //   sizeof(W).
@@ -162,7 +163,7 @@ protected:
   static_assert(UB <= Wbits,
                 "Number of used bits must be less than number of bits in a word");
   static_assert(sizeof(IDX) <= sizeof(W),
-                "The size of index type IDX must be less than the word type W");
+                "The size of integral type IDX must be less than the word type W");
 
 public:
   typedef typename std::iterator<std::random_access_iterator_tag, IDX>::difference_type difference_type;
@@ -427,7 +428,7 @@ std::ostream& operator<<(std::ostream& os, const common<D, I, W, U>& rhs) {
 template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof<W>::val>
 class setter {
   W*           ptr;
-  unsigned int bits;            // number of bits in an index
+  unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
   typedef compact::iterator<IDX, W, TS, UB> iterator;
@@ -463,7 +464,7 @@ class iterator :
   public iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>
 {
   W*           ptr;
-  unsigned int bits;            // number of bits in an index
+  unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
   friend class iterator<IDX, W, !TS, UB>;
@@ -503,7 +504,7 @@ class const_iterator :
   public iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>
 {
   const W*     ptr;
-  unsigned int bits;            // number of bits in an index
+  unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
   friend class iterator<IDX, W>;
@@ -527,7 +528,6 @@ public:
   const_iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
 };
 
-namespace index_imp {
 template<typename I, typename W, bool TS, unsigned int UB>
 struct const_iterator_traits<iterator<I, W, TS, UB>> {
   typedef const_iterator<I, W, UB> type;
@@ -570,7 +570,6 @@ struct prefetch_iterator_traits<const_iterator<I, W, UB> > {
   static void write(const const_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template write<level>(p.get_ptr()); }
 
 };
-}
 
 } // namespace compact
 

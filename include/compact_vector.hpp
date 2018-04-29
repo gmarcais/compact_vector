@@ -1,9 +1,5 @@
-#ifndef __COMPACT_INDEX_H__
-#define __COMPACT_INDEX_H__
-
-#ifdef HAVE_CONFIG
-#include <config.h>
-#endif
+#ifndef __COMPACT_VECTOR_H__
+#define __COMPACT_VECTOR_H__
 
 #include <new>
 #include <stdexcept>
@@ -12,10 +8,10 @@
 
 namespace compact {
 
-namespace index_imp {
+namespace vector_imp {
 
 template<typename IDX, typename W, typename Allocator, unsigned int UB, bool TS>
-class index {
+class vector {
   Allocator          m_allocator;
   size_t             m_size;    // Size in number of elements
   size_t             m_capacity; // Capacity in number of elements
@@ -45,7 +41,7 @@ public:
   typedef std::reverse_iterator<iterator>       reverse_iterator;
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-  index(unsigned int b, size_t s, Allocator allocator = Allocator())
+  vector(unsigned int b, size_t s, Allocator allocator = Allocator())
     : m_allocator(allocator)
     , m_size(s)
     , m_capacity(s)
@@ -55,10 +51,10 @@ public:
     if(b > UB)
       throw std::out_of_range("Number of bits larger than usable bits");
   }
-  explicit index(unsigned int b, Allocator allocator = Allocator())
-    : index(b, 0)
+  explicit vector(unsigned int b, Allocator allocator = Allocator())
+    : vector(b, 0)
   { }
-  ~index() {
+  ~vector() {
     m_allocator.deallocate(m_mem, elements_to_words(m_capacity, m_bits));
   }
 
@@ -117,13 +113,13 @@ protected:
     m_capacity = new_capacity;
   }
 };
-} // namespace index_imp
+} // namespace vector_imp
 
 template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
 class vector
-  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val, false>
+  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, false>
 {
-  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, false> super;
+  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, false> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
@@ -151,9 +147,9 @@ public:
 //unsigned int UB = bitsof<W>::val>
 template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
 class ts_vector
-  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val, true>
+  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, true>
 {
-  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val, true> super;
+  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, true> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
@@ -180,9 +176,9 @@ public:
 
 template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
 class cas_vector
-  : public index_imp::index<IDX, W, Allocator, bitsof<W>::val - 1, true>
+  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val - 1, true>
 {
-  typedef index_imp::index<IDX, W, Allocator, bitsof<W>::val - 1, true> super;
+  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val - 1, true> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
@@ -207,8 +203,6 @@ public:
   { }
 };
 
-
-
 } // namespace compact
 
-#endif /* __COMPACT_INDEX_H__ */
+#endif /* __COMPACT_VECTOR_H__ */
