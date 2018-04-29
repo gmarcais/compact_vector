@@ -55,62 +55,84 @@ TYPED_TEST_P(CompactIndexTest, Iterator) {
   for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
     const int bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
-    typename TypeParam::compact_index_type index(this->size, bits);
+    typename TypeParam::compact_index_type index1(bits, this->size);
+    typename TypeParam::compact_index_type index2(bits);
 
-    EXPECT_EQ(this->size, index.size());
-    EXPECT_EQ((unsigned int)bits, index.bits());
+    EXPECT_EQ(this->size, index1.size());
+    EXPECT_EQ((size_t)0, index2.size());
+    EXPECT_EQ((unsigned int)bits, index1.bits());
+    EXPECT_EQ((unsigned int)bits, index2.bits());
 
     std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
 
     std::vector<typename TypeParam::index_type> ary;
     {
-      auto it  = index.begin();
+      auto it  = index1.begin();
       auto pit = it - 1;
       for(size_t i = 0; i < this->size; ++i, pit = it, ++it) {
         SCOPED_TRACE(::testing::Message() << "i:" << i);
         ary.push_back(uni(generator));
         *it = ary.back();
+        index2.push_back(ary.back());
+        EXPECT_LE(index2.size(), index2.capacity());
+        EXPECT_LE(index2.capacity(), 2*index2.size());
+        EXPECT_EQ(ary.size(), index2.size());
         EXPECT_EQ(ary.back(), *it);
-        EXPECT_EQ(ary.back(), index.cbegin()[i]);
-        EXPECT_EQ(it, &index.begin()[i]);
-        EXPECT_EQ((ssize_t)i, it - index.begin());
-        EXPECT_EQ(-(ssize_t)i, index.begin() - it);
-        EXPECT_EQ(it, index.begin() + i);
-        EXPECT_EQ(it, i + index.begin());
-        EXPECT_EQ(index.begin(), it - i);
+        EXPECT_EQ(ary.back(), index1.cbegin()[i]);
+        EXPECT_EQ(ary.back(), index2.back());
+        EXPECT_EQ(ary.back(), index2.cbegin()[i]);
+        EXPECT_EQ(ary.front(), index1.front());
+        EXPECT_EQ(ary.front(), index2.front());
+        EXPECT_EQ(it, &index1.begin()[i]);
+        EXPECT_EQ((ssize_t)i, it - index1.begin());
+        EXPECT_EQ(-(ssize_t)i, index1.begin() - it);
+        EXPECT_EQ(it, index1.begin() + i);
+        EXPECT_EQ(it, i + index1.begin());
+        EXPECT_EQ(index1.begin(), it - i);
         EXPECT_EQ(pit, it - 1);
         EXPECT_EQ(it, (it - 2) + 2);
-        EXPECT_TRUE(index.begin() <= it);
-        EXPECT_TRUE(it >= index.begin());
+        EXPECT_TRUE(index1.begin() <= it);
+        EXPECT_TRUE(it >= index1.begin());
       }
-      EXPECT_EQ(index.end(), it);
+      EXPECT_EQ(index1.end(), it);
     }
 
     {
-      auto it = index.cbegin();
-      for(auto ait = ary.cbegin(); ait != ary.cend(); ++ait, ++it) {
+      auto it1 = index1.cbegin();
+      auto it2 = index2.cbegin();
+      for(auto ait = ary.cbegin(); ait != ary.cend(); ++ait, ++it1, ++it2) {
         SCOPED_TRACE(::testing::Message() << "i:" << (ait - ary.cbegin()));
-        EXPECT_EQ(ait - ary.cbegin(), it - index.cbegin());
-        EXPECT_EQ(*ait, *it);
+        EXPECT_EQ(ait - ary.cbegin(), it1 - index1.cbegin());
+        EXPECT_EQ(*ait, *it1);
+        EXPECT_EQ(ait - ary.cbegin(), it2 - index2.cbegin());
+        EXPECT_EQ(*ait, *it2);
       }
     }
 
     {
       std::vector<size_t> order;
-      auto it = index.cbegin();
+      auto it1 = index1.cbegin();
       for(size_t i = 0; i < this->size; ++i) order.push_back(i);
       std::random_shuffle(order.begin(), order.end());
-      for(auto i : order)
-        EXPECT_EQ(ary[i], it[i]);
+      for(auto i : order) {
+        EXPECT_EQ(ary[i], it1[i]);
+        EXPECT_EQ(ary[i], index2[i]);
+      }
     }
 
-    // Test negative numbers, if index is a signed type
+    // Test negative numbers, if index1 is a signed type
     if(std::is_signed<typename TypeParam::index_type>::value) {
-      auto it = index.begin();
-      for(size_t i = 0; i < this->size; ++i)
+      auto it = index1.begin();
+      typename TypeParam::compact_index_type index3(bits);
+      for(size_t i = 0; i < this->size; ++i) {
         it[i] = -ary[i];
-      for(size_t i = 0; i < this->size; ++i)
+        index3.push_back(-ary[i]);
+      }
+      EXPECT_EQ(ary.size(), index3.size());
+      for(size_t i = 0; i < this->size; ++i) {
         EXPECT_EQ(-ary[i], it[i]);
+        EXPECT_EQ(-ary[i], index3[i]);
+      }
     }
   } // for(). Loop over this->bits
 }
@@ -121,7 +143,7 @@ TYPED_TEST_P(CompactIndexTest, Swap) {
   for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
     const int                              bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
-    typename TypeParam::compact_index_type index(this->size, bits);
+    typename TypeParam::compact_index_type index(bits, this->size);
     std::uniform_int_distribution<int>     uni(0, (1 << (bits - 1)) - 1);
     const typename TypeParam::index_type   v1   = uni(generator);
     const typename TypeParam::index_type   v2   = uni(generator);
@@ -180,7 +202,7 @@ TEST(CompactIndex2, MultiThread) {
   const unsigned int   bits       = 13;
   const size_t         size       = 64;
   const int            nb_threads = 4;
-  compact::vector<int> index(size, bits);
+  compact::vector<int> index(bits, size);
 
   std::fill_n(index.begin(), size, 0);
   std::vector<std::thread> threads;
@@ -220,7 +242,7 @@ TEST(CompactIndex2, CAS) {
   std::vector<unsigned int> ptr(size, 0);
   typedef compact::cas_vector<unsigned int> compact_index_type;
   typedef compact_index_type::iterator compact_iterator_type;
-  compact_index_type index(size, bits);
+  compact_index_type index(bits, size);
 
   std::vector<std::thread> threads;
 
