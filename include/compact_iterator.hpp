@@ -52,9 +52,9 @@ static IDX get(const W* p, unsigned int b, unsigned int o) {
   W                       mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
   IDX                     res    = (*p & mask) >> o;
   if(o + b > UB) {
-    unsigned int over  = o + b - UB;
-    mask               = ~(W)0 >> (Wbits - over);
-    res               |= (*(p + 1) & mask) << (b - over);
+    const unsigned int over  = o + b - UB;
+    mask                     = ~(W)0 >> (Wbits - over);
+    res                     |= (*(p + 1) & mask) << (b - over);
   }
   if(std::is_signed<IDX>::value && res & ((IDX)1 << (b - 1)))
     res |= ~(IDX)0 << b;
@@ -120,7 +120,7 @@ static void set(IDX x, W* p, unsigned int b, unsigned int o) {
 // Do a CAS at position p, offset o and number of bits b. Expect value
 // exp and set value x. It takes care of the tricky case when the
 // value pointed by (p, o, b) straddles 2 words. Then it require 2 CAS
-// and it is technically not lock free anymore. If the current thread
+// and it is technically not lock free anymore: if the current thread
 // dies after setting the MSB to 1 during the first CAS, then the
 // location is "dead" and other threads maybe prevented from making
 // progress.
@@ -147,6 +147,44 @@ static bool cas(const IDX x, const IDX exp, W* p, unsigned int b, unsigned int o
   const bool         res  = mask_store<W, true>::cas(p + 1, mask, (W)x >> (b - over), (W)exp >> (b - over));
   mask_store<W, true>::store(p, msb, 0);
   return res;
+}
+
+// Fetch a value at position p, offset o and number of bits b. This is
+// used when multiple thread may update the same position (p,o,b) with
+// cas operations. In the case where the value straddles two words,
+// then a CAS operation set the MSB to 1 (to prevent any other thread
+// from changing the value), then reads the second words, finally sets
+// the MSB back to 0 with a CAS operation.
+//
+// Result returned in res. Returns true if fetch is successfull
+// (either value contained within a word, or CAS operations
+// succeeded). Otherwise, it returns false.
+template<typename IDX, typename W, unsigned int UB>
+static bool fetch(IDX& res, W* p, unsigned int b, unsigned int o) {
+  static_assert(UB < bitsof<W>::val, "The fetch operation is valid for cas_vector (used bits less than bits in word");
+  if(o + b <= UB) {
+    res = get(p, b, o);
+    return true;
+  }
+
+  // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
+  // 0. If failure, then return failure. If success, read entire value
+  // then set MSB back to 0.
+  static constexpr size_t Wbits  = bitsof<W>::val;
+  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+  static constexpr W      msb    = (W)1 << (Wbits - 1);
+  const W                 mask   = (~(W)0 >> (Wbits - b)) << o;
+  W                       x      = (*p & mask);
+  if(x & msb) return false; // MSB already set to 1
+  if(!mask_store<W, true>::cas(p, mask, msb | x, x))
+    return false;
+  const unsigned int over  = o + b - UB;
+  const W nmask            = ~(W)0 >> (Wbits - over);
+  res                      = x | ((*(p + 1) & nmask) << (b - over));
+  if(std::is_signed<IDX>::value && res & ((IDX)1 << (b - 1)))
+    res |= ~(IDX)0 << b;
+  mask_store<W, true>cas(p, mask, x, x | msb);
+  return true;
 }
 
 template<class Derived, typename IDX, typename W, unsigned int UB>
