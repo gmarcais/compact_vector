@@ -51,11 +51,16 @@ template<typename IDX, unsigned BITS = 0, typename W = uint64_t,
 class iterator;
 
 namespace iterator_imp {
-template<typename IDX, unsigned BITS, typename W, unsigned UB>
-struct getter;
 
+template<typename IDX, unsigned BITS, typename W, unsigned UB>
+struct gs; // Getter / setter
+
+template<typename W, bool TS>
+struct mask_store { }; // Store bits within a word masked
+
+// gs implementation for runtime number of bits
 template<typename IDX, typename W, unsigned UB>
-struct getter<IDX, 0, W, UB> {
+struct gs<IDX, 0, W, UB> {
   static IDX get(const W* p, unsigned b, unsigned o) {
     static constexpr size_t Wbits  = bitsof<W>::val;
     static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
@@ -71,11 +76,91 @@ struct getter<IDX, 0, W, UB> {
 
     return res;
   }
+
+  template<bool TS>
+  static void set(IDX x, W* p, unsigned b, unsigned o) {
+    static constexpr size_t Wbits  = bitsof<W>::val;
+    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+    const W                 y      = x;
+    W                       mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
+    mask_store<W, TS>::store(p, mask, y << o);
+    if(o + b > UB) {
+      unsigned over = o + b - UB;
+      mask              = ~(W)0 >> (Wbits - over);
+      mask_store<W, TS>::store(p + 1, mask, y >> (b - over));
+    }
+  }
+
+  // Do a CAS at position p, offset o and number of bits b. Expect value
+  // exp and set value x. It takes care of the tricky case when the
+  // value pointed by (p, o, b) straddles 2 words. Then it require 2 CAS
+  // and it is technically not lock free anymore: if the current thread
+  // dies after setting the MSB to 1 during the first CAS, then the
+  // location is "dead" and other threads maybe prevented from making
+  // progress.
+  static bool cas(const IDX x, const IDX exp, W* p, unsigned b, unsigned o) {
+    static_assert(UB < bitsof<W>::val, "The CAS operation is valid for a cas_vector (used bits less than bits in word)");
+    static constexpr size_t Wbits  = bitsof<W>::val;
+    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+    static_assert(UB < Wbits, "Used bits must strictly less than bit size of W for CAS.");
+    if(o + b <= UB) {
+      const W mask  = (~(W)0 >> (Wbits - b)) << o & ubmask;
+      return mask_store<W, true>::cas(p, mask, (W)x << o, (W)exp << o);
+    }
+
+    // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
+    // 0. If failure, then return failure. If success, cas rest of value
+    // in next word, then set MSB back to 0.
+    static constexpr W msb = (W)1 << (Wbits - 1);
+    W mask = (~(W)0 >> (Wbits - b)) << o;
+    if(!mask_store<W, true>::cas(p, mask, msb | ((W)x << o), ~msb & ((W)exp << o)))
+      return false;
+    const unsigned over = o + b - UB;
+    mask                    = ~(W)0 >> (Wbits - over);
+    const bool         res  = mask_store<W, true>::cas(p + 1, mask, (W)x >> (b - over), (W)exp >> (b - over));
+    mask_store<W, true>::store(p, msb, 0);
+    return res;
+  }
+
+  // Fetch a value at position p, offset o and number of bits b. This is
+  // used when multiple thread may update the same position (p,o,b) with
+  // cas operations. In the case where the value straddles two words,
+  // then a CAS operation set the MSB to 1 (to prevent any other thread
+  // from changing the value), then reads the second words, finally sets
+  // the MSB back to 0 with a CAS operation.
+  //
+  // Result returned in res. Returns true if fetch is successfull
+  // (either value contained within a word, or CAS operations
+  // succeeded). Otherwise, it returns false.
+  static bool fetch(IDX& res, W* p, unsigned b, unsigned o) {
+    static_assert(UB < bitsof<W>::val, "The fetch operation is valid for cas_vector (used bits less than bits in word");
+    if(o + b <= UB) {
+      res = get(p, b, o);
+      return true;
+    }
+
+    // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
+    // 0. If failure, then return failure. If success, read entire value
+    // then set MSB back to 0.
+    static constexpr size_t Wbits  = bitsof<W>::val;
+    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
+    static constexpr W      msb    = (W)1 << (Wbits - 1);
+    const W                 mask   = (~(W)0 >> (Wbits - b)) << o;
+    W                       x      = (*p & mask);
+    if(x & msb) return false; // MSB already set to 1
+    if(!mask_store<W, true>::cas(p, mask, msb | x, x))
+      return false;
+    const unsigned over  = o + b - UB;
+    const W nmask            = ~(W)0 >> (Wbits - over);
+    res                      = x | ((*(p + 1) & nmask) << (b - over));
+    if(std::is_signed<IDX>::value && res & ((IDX)1 << (b - 1)))
+      res |= ~(IDX)0 << b;
+    mask_store<W, true>cas(p, mask, x, x | msb);
+    return true;
+  }
 };
 
-template<typename W, bool TS>
-struct mask_store { };
-
+// Mask store, depending on the thread safety guarantee
 template<typename W>
 struct mask_store<W, false> {
   static inline void store(W* p, W mask, W val) {
@@ -114,89 +199,6 @@ struct mask_store<W, true> {
   }
 };
 
-template<typename IDX, typename W, bool TS = false, unsigned UB = bitsof<W>::val>
-static void set(IDX x, W* p, unsigned b, unsigned o) {
-  static constexpr size_t Wbits  = bitsof<W>::val;
-  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-  const W                 y      = x;
-  W                       mask   = ((~(W)0 >> (Wbits - b)) << o) & ubmask;
-  mask_store<W, TS>::store(p, mask, y << o);
-  if(o + b > UB) {
-    unsigned over = o + b - UB;
-    mask              = ~(W)0 >> (Wbits - over);
-    mask_store<W, TS>::store(p + 1, mask, y >> (b - over));
-  }
-}
-
-// Do a CAS at position p, offset o and number of bits b. Expect value
-// exp and set value x. It takes care of the tricky case when the
-// value pointed by (p, o, b) straddles 2 words. Then it require 2 CAS
-// and it is technically not lock free anymore: if the current thread
-// dies after setting the MSB to 1 during the first CAS, then the
-// location is "dead" and other threads maybe prevented from making
-// progress.
-template<typename IDX, typename W, unsigned UB>
-static bool cas(const IDX x, const IDX exp, W* p, unsigned b, unsigned o) {
-  static_assert(UB < bitsof<W>::val, "The CAS operation is valid for a cas_vector (used bits less than bits in word)");
-  static constexpr size_t Wbits  = bitsof<W>::val;
-  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-  static_assert(UB < Wbits, "Used bits must strictly less than bit size of W for CAS.");
-  if(o + b <= UB) {
-    const W mask  = (~(W)0 >> (Wbits - b)) << o & ubmask;
-    return mask_store<W, true>::cas(p, mask, (W)x << o, (W)exp << o);
-  }
-
-  // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
-  // 0. If failure, then return failure. If success, cas rest of value
-  // in next word, then set MSB back to 0.
-  static constexpr W msb = (W)1 << (Wbits - 1);
-  W mask = (~(W)0 >> (Wbits - b)) << o;
-  if(!mask_store<W, true>::cas(p, mask, msb | ((W)x << o), ~msb & ((W)exp << o)))
-    return false;
-  const unsigned over = o + b - UB;
-  mask                    = ~(W)0 >> (Wbits - over);
-  const bool         res  = mask_store<W, true>::cas(p + 1, mask, (W)x >> (b - over), (W)exp >> (b - over));
-  mask_store<W, true>::store(p, msb, 0);
-  return res;
-}
-
-// Fetch a value at position p, offset o and number of bits b. This is
-// used when multiple thread may update the same position (p,o,b) with
-// cas operations. In the case where the value straddles two words,
-// then a CAS operation set the MSB to 1 (to prevent any other thread
-// from changing the value), then reads the second words, finally sets
-// the MSB back to 0 with a CAS operation.
-//
-// Result returned in res. Returns true if fetch is successfull
-// (either value contained within a word, or CAS operations
-// succeeded). Otherwise, it returns false.
-template<typename IDX, typename W, unsigned UB>
-static bool fetch(IDX& res, W* p, unsigned b, unsigned o) {
-  static_assert(UB < bitsof<W>::val, "The fetch operation is valid for cas_vector (used bits less than bits in word");
-  if(o + b <= UB) {
-    res = get(p, b, o);
-    return true;
-  }
-
-  // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
-  // 0. If failure, then return failure. If success, read entire value
-  // then set MSB back to 0.
-  static constexpr size_t Wbits  = bitsof<W>::val;
-  static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-  static constexpr W      msb    = (W)1 << (Wbits - 1);
-  const W                 mask   = (~(W)0 >> (Wbits - b)) << o;
-  W                       x      = (*p & mask);
-  if(x & msb) return false; // MSB already set to 1
-  if(!mask_store<W, true>::cas(p, mask, msb | x, x))
-    return false;
-  const unsigned over  = o + b - UB;
-  const W nmask            = ~(W)0 >> (Wbits - over);
-  res                      = x | ((*(p + 1) & nmask) << (b - over));
-  if(std::is_signed<IDX>::value && res & ((IDX)1 << (b - 1)))
-    res |= ~(IDX)0 << b;
-  mask_store<W, true>cas(p, mask, x, x | msb);
-  return true;
-}
 
 template<class Derived, typename IDX, unsigned BITS, typename W, unsigned UB>
 class common {
@@ -234,7 +236,7 @@ public:
 
   IDX operator*() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return getter<IDX, BITS, W, UB>::get(self.m_ptr, self.bits(), self.m_offset);
+    return gs<IDX, BITS, W, UB>::get(self.m_ptr, self.bits(), self.m_offset);
   }
 
   bool operator==(const Derived& rhs) const {
@@ -378,18 +380,18 @@ public:
   // Get some number of bits
   W get_bits(unsigned bits) const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return getter<W, BITS, W, UB>::get(self.ptr, bits, self.offset);
+    return gs<W, BITS, W, UB>::get(self.ptr, bits, self.offset);
   }
 
   W get_bits(unsigned bits, unsigned offset) const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return getter<W, BITS, W, UB>::get(self.ptr, bits, offset);
+    return gs<W, BITS, W, UB>::get(self.ptr, bits, offset);
   }
 
   template<bool TS = false>
   void set_bits(W x, unsigned bits) {
     Derived& self  = *static_cast<Derived*>(this);
-    set<W, W, TS, UB>(x, self.ptr, bits, self.offset);
+    gs<W, BITS, W, UB>::set<TS>(x, self.ptr, bits, self.offset);
   }
 };
 
@@ -475,34 +477,34 @@ std::ostream& operator<<(std::ostream& os, const common<D, I, B, W, U>& rhs) {
 }
 
 template<typename IDX, unsigned BITS, typename W, bool TS = false, unsigned UB = bitsof<W>::val>
-class setter;
+class lhs_setter;
 
 template<typename IDX, typename W, bool TS, unsigned UB>
-class setter<IDX, 0, W, TS, UB> {
+class lhs_setter<IDX, 0, W, TS, UB> {
   W*           ptr;
   unsigned bits;            // number of bits in an integral type
   unsigned offset;
 
   typedef compact::iterator<IDX, 0, W, TS, UB> iterator;
 public:
-  setter(W* p, int b, int o) : ptr(p), bits(b), offset(o) { }
-  operator IDX() const { return getter<IDX, 0, W, UB>::get(ptr, bits, offset); }
-  setter& operator=(const IDX x) {
-    set<IDX, W, TS, UB>(x, ptr, bits, offset);
+  lhs_setter(W* p, int b, int o) : ptr(p), bits(b), offset(o) { }
+  operator IDX() const { return gs<IDX, 0, W, UB>::get(ptr, bits, offset); }
+  lhs_setter& operator=(const IDX x) {
+    gs<IDX, 0, W, UB>::template set<TS>(x, ptr, bits, offset);
     return *this;
   }
-  setter& operator=(const setter& rhs) {
-    set<IDX, W, TS, UB>((IDX)rhs, ptr, bits, offset);
+  lhs_setter& operator=(const lhs_setter& rhs) {
+    gs<IDX, 0, W, UB>::template set<TS>((IDX)rhs, ptr, bits, offset);
     return *this;
   }
   iterator operator&() { return iterator(ptr, bits, offset); }
   inline bool cas(const IDX x, const IDX exp) {
-    return iterator_imp::cas<IDX, W>(x, exp, ptr, bits, offset);
+    return gs<IDX, 0, W, UB>::cas(x, exp, ptr, bits, offset);
   }
 };
 
 template<typename I, unsigned BITS, typename W, bool TS, unsigned UB>
-void swap(setter<I, BITS, W, TS, UB> x, setter<I, BITS, W, TS, UB> y) {
+void swap(lhs_setter<I, BITS, W, TS, UB> x, lhs_setter<I, BITS, W, TS, UB> y) {
   I t = x;
   x = (I)y;
   y = t;
@@ -530,7 +532,7 @@ public:
   typedef typename super::difference_type                     difference_type;
   typedef IDX                                                 idx_type;
   typedef W                                                   word_type;
-  typedef iterator_imp::setter<IDX, 0, W, TS, UB>             setter_type;
+  typedef iterator_imp::lhs_setter<IDX, 0, W, TS, UB>             lhs_setter_type;
 
   iterator() = default;
   iterator(W* p, unsigned b, unsigned o)
@@ -541,18 +543,19 @@ public:
   iterator(std::nullptr_t)
     : m_ptr(nullptr), m_bits(0), m_offset(0) { }
 
-  setter_type operator*() { return setter_type(m_ptr, m_bits, m_offset); }
-  setter_type operator[](const difference_type n) const {
+  lhs_setter_type operator*() { return lhs_setter_type(m_ptr, m_bits, m_offset); }
+  lhs_setter_type operator[](const difference_type n) const {
     return *(*this + n);
   }
 
   // CAS val. Does NOT return existing value at pointer. Return true
   // if successful.
   inline bool cas(const IDX x, const IDX exp) {
-    return iterator_imp::cas<IDX, W, UB>(x, exp, m_ptr, m_bits, m_offset);
+    return iterator_imp::gs<IDX, 0, W, UB>::cas(x, exp, m_ptr, m_bits, m_offset);
   }
 
   unsigned bits() const { return m_bits; }
+protected:
   void bits(unsigned b) { m_bits = b; }
 };
 

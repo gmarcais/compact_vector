@@ -79,11 +79,11 @@ public:
   mt_iterator mt_end() { return begin() + m_size; }
 
   IDX operator[](size_t i) const { return cbegin()[i]; }
-  typename iterator::setter_type operator[](size_t i) { return begin()[i]; }
+  typename iterator::lhs_setter_type operator[](size_t i) { return begin()[i]; }
   IDX front() const { return *cbegin(); }
-  typename iterator::setter_type front() { return *begin(); }
+  typename iterator::lhs_setter_type front() { return *begin(); }
   IDX back() const { return *(cbegin() + (m_size - 1)); }
-  typename iterator::setter_type back() { return *(begin() + (m_size - 1)); }
+  typename iterator::lhs_setter_type back() { return *(begin() + (m_size - 1)); }
 
   size_t size() const { return m_size; }
   bool empty() const { return m_size == 0; }
@@ -131,7 +131,7 @@ public:
   typedef typename super::const_iterator        const_iterator;
   typedef IDX                                   value_type;
   typedef Allocator                             allocator_type;
-  typedef typename iterator::setter_type        reference;
+  typedef typename iterator::lhs_setter_type    reference;
   typedef const reference                       const_reference;
   typedef iterator                              pointer;
   typedef const_iterator                        const_pointer;
@@ -164,7 +164,7 @@ public:
   typedef typename super::const_iterator        const_iterator;
   typedef IDX                                   value_type;
   typedef Allocator                             allocator_type;
-  typedef typename iterator::setter_type        reference;
+  typedef typename iterator::lhs_setter_type    reference;
   typedef const reference                       const_reference;
   typedef iterator                              pointer;
   typedef const_iterator                        const_pointer;
@@ -196,7 +196,7 @@ public:
   typedef typename super::const_iterator        const_iterator;
   typedef IDX                                   value_type;
   typedef Allocator                             allocator_type;
-  typedef typename iterator::setter_type        reference;
+  typedef typename iterator::lhs_setter_type    reference;
   typedef const reference                       const_reference;
   typedef iterator                              pointer;
   typedef const_iterator                        const_pointer;
