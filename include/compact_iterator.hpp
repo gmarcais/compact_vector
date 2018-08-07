@@ -28,6 +28,10 @@ struct bitsof {
 //   integer pointed to, as seen from the outside. It behaves like a
 //   pointer to IDX.
 //
+// * BITS is the number of bits used for each word. If BITS==0, the
+// * class is specialized to use a number of bits defined at runtime
+// * instead of compile time.
+//
 // * W is the word type used internally. We must have sizeof(IDX) <=
 //   sizeof(W).
 //
@@ -39,9 +43,11 @@ struct bitsof {
 //   bitsof<W>::val. Normally UB == bitsof<W>::val, but for some applications,
 //   saving a few bits in each word can be useful (for example to
 //   provide the compare and swap operation CAS).
-template<typename IDX, typename W, unsigned int UB>
+template<typename IDX, unsigned BITS = 0, typename W = uint64_t,
+         unsigned int UB = bitsof<W>::val>
 class const_iterator;
-template<typename IDX, typename W, bool TS, unsigned int UB>
+template<typename IDX, unsigned BITS = 0, typename W = uint64_t,
+         bool TS = false, unsigned int UB = bitsof<W>::val>
 class iterator;
 
 namespace iterator_imp {
@@ -463,13 +469,16 @@ std::ostream& operator<<(std::ostream& os, const common<D, I, W, U>& rhs) {
   return rhs.print(os);
 }
 
-template<typename IDX, typename W, bool TS = false, unsigned int UB = bitsof<W>::val>
-class setter {
+template<typename IDX, unsigned BITS, typename W, bool TS = false, unsigned int UB = bitsof<W>::val>
+class setter;
+
+template<typename IDX, typename W, bool TS, unsigned int UB>
+class setter<IDX, 0, W, TS, UB> {
   W*           ptr;
   unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
-  typedef compact::iterator<IDX, W, TS, UB> iterator;
+  typedef compact::iterator<IDX, 0, W, TS, UB> iterator;
 public:
   setter(W* p, int b, int o) : ptr(p), bits(b), offset(o) { }
   operator IDX() const { return get<IDX, W, UB>(ptr, bits, offset); }
@@ -487,8 +496,8 @@ public:
   }
 };
 
-template<typename I, typename W, bool TS, unsigned int UB>
-void swap(setter<I, W, TS, UB> x, setter<I, W, TS, UB> y) {
+template<typename I, unsigned BITS, typename W, bool TS, unsigned int UB>
+void swap(setter<I, BITS, W, TS, UB> x, setter<I, BITS, W, TS, UB> y) {
   I t = x;
   x = (I)y;
   y = t;
@@ -496,19 +505,19 @@ void swap(setter<I, W, TS, UB> x, setter<I, W, TS, UB> y) {
 
 } // namespace iterator_imp
 
-template<typename IDX, typename W = uint64_t, bool TS = false, unsigned int UB = bitsof<W>::val>
-class iterator :
-  public std::iterator<std::random_access_iterator_tag, IDX>,
-  public iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>
+template<typename IDX, typename W, bool TS, unsigned int UB>
+class iterator<IDX, 0, W, TS, UB> :
+    public std::iterator<std::random_access_iterator_tag, IDX>,
+    public iterator_imp::common<iterator<IDX, 0, W, TS, UB>, IDX, W, UB>
 {
   W*           ptr;
   unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
-  friend class iterator<IDX, W, !TS, UB>;
-  friend class const_iterator<IDX, W, UB>;
-  friend class iterator_imp::common<iterator<IDX, W, TS, UB>, IDX, W, UB>;
-  friend class iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>;
+  friend class iterator<IDX, 0, W, !TS, UB>;
+  friend class const_iterator<IDX, 0, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, 0, W, TS, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, W, UB>;
 
   typedef std::iterator<std::random_access_iterator_tag, IDX> super;
 public:
@@ -516,12 +525,12 @@ public:
   typedef typename super::difference_type                     difference_type;
   typedef IDX                                                 idx_type;
   typedef W                                                   word_type;
-  typedef iterator_imp::setter<IDX, W, TS, UB>                setter_type;
+  typedef iterator_imp::setter<IDX, 0, W, TS, UB>             setter_type;
 
   iterator() = default;
   iterator(W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
-  template<bool TTS>
-  iterator(const iterator<IDX, W, TTS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
+  template<unsigned BITS, bool TTS>
+  iterator(const iterator<IDX, BITS, W, TTS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
   iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
 
   setter_type operator*() { return setter_type(ptr, bits, offset); }
@@ -536,19 +545,19 @@ public:
   }
 };
 
-template<typename IDX, typename W = uint64_t, unsigned int UB = bitsof<W>::val>
-class const_iterator :
+template<typename IDX, typename W, unsigned int UB>
+class const_iterator<IDX, 0, W, UB> :
   public std::iterator<std::random_access_iterator_tag, const IDX>,
-  public iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>
+  public iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, W, UB>
 {
   const W*     ptr;
   unsigned int bits;            // number of bits in an integral type
   unsigned int offset;
 
-  friend class iterator<IDX, W>;
-  friend class iterator_imp::common<iterator<IDX, W, true, UB>, IDX, W, UB>;
-  friend class iterator_imp::common<iterator<IDX, W, false, UB>, IDX, W, UB>;
-  friend class iterator_imp::common<const_iterator<IDX, W, UB>, IDX, W, UB>;
+  friend class iterator<IDX, 0, W>;
+  friend class iterator_imp::common<iterator<IDX, 0, W, true, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, 0, W, false, UB>, IDX, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, W, UB>;
 
   typedef std::iterator<std::random_access_iterator_tag, IDX> super;
 public:
@@ -561,23 +570,23 @@ public:
   const_iterator() = default;
   const_iterator(const W* p, unsigned int b, unsigned int o) : ptr(p), bits(b), offset(o) { }
   const_iterator(const const_iterator& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
-  template<bool TS>
-  const_iterator(const iterator<IDX, W, TS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
+  template<unsigned BITS, bool TS>
+  const_iterator(const iterator<IDX, BITS, W, TS>& rhs) : ptr(rhs.ptr), bits(rhs.bits), offset(rhs.offset) { }
   const_iterator(std::nullptr_t) : ptr(nullptr), bits(0), offset(0) { }
 };
 
-template<typename I, typename W, bool TS, unsigned int UB>
-struct const_iterator_traits<iterator<I, W, TS, UB>> {
-  typedef const_iterator<I, W, UB> type;
+template<typename I, unsigned BITS, typename W, bool TS, unsigned int UB>
+struct const_iterator_traits<iterator<I, BITS, W, TS, UB>> {
+  typedef const_iterator<I, BITS, W, UB> type;
 };
-template<typename I, typename W, unsigned int UB>
-struct const_iterator_traits<const_iterator<I, W, UB>> {
-  typedef const_iterator<I, W, UB> type;
+template<typename I, unsigned BITS, typename W, unsigned int UB>
+struct const_iterator_traits<const_iterator<I, BITS, W, UB>> {
+  typedef const_iterator<I, BITS, W, UB> type;
 };
 
-template<typename I, typename W, bool TS, unsigned int UB>
-struct parallel_iterator_traits<iterator<I, W, TS, UB>> {
-  typedef iterator<I, W, true, UB> type;
+template<typename I, unsigned BITS, typename W, bool TS, unsigned int UB>
+struct parallel_iterator_traits<iterator<I, BITS, W, TS, UB>> {
+  typedef iterator<I, BITS, W, true, UB> type;
 
   // Does a cas on iterator x. Weak though: val is NOT updated to the
   // current value.
@@ -586,26 +595,26 @@ struct parallel_iterator_traits<iterator<I, W, TS, UB>> {
   }
 };
 
-template<typename I, typename W, unsigned int UB>
-struct parallel_iterator_traits<const_iterator<I, W, UB>> {
-  typedef const_iterator<I, W> type;
+template<typename I, unsigned BITS, typename W, unsigned int UB>
+struct parallel_iterator_traits<const_iterator<I, BITS, W, UB>> {
+  typedef const_iterator<I, BITS, W> type;
 };
 
-template<typename I, typename W, bool TS, unsigned int UB>
-struct prefetch_iterator_traits<iterator<I, W, TS, UB> > {
+template<typename I, unsigned BITS, typename W, bool TS, unsigned int UB>
+struct prefetch_iterator_traits<iterator<I, BITS, W, TS, UB> > {
   template<int level = 0>
-  static void read(const iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template read<level>(p.get_ptr()); }
+  static void read(const iterator<I, BITS, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template read<level>(p.get_ptr()); }
   template<int level = 0>
-  static void write(const iterator<I, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template write<level>(p.get_ptr()); }
+  static void write(const iterator<I, BITS, W, TS, UB>& p) { prefetch_iterator_traits<W*>::template write<level>(p.get_ptr()); }
 
 };
 
-template<typename I, typename W, unsigned int UB>
-struct prefetch_iterator_traits<const_iterator<I, W, UB> > {
+template<typename I, unsigned BITS, typename W, unsigned int UB>
+struct prefetch_iterator_traits<const_iterator<I, BITS, W, UB> > {
   template<int level = 0>
-  static void read(const const_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template read<level>(p.get_ptr()); }
+  static void read(const const_iterator<I, BITS, W, UB>& p) { prefetch_iterator_traits<const W*>::template read<level>(p.get_ptr()); }
   template<int level = 0>
-  static void write(const const_iterator<I, W, UB>& p) { prefetch_iterator_traits<const W*>::template write<level>(p.get_ptr()); }
+  static void write(const const_iterator<I, BITS, W, UB>& p) { prefetch_iterator_traits<const W*>::template write<level>(p.get_ptr()); }
 
 };
 

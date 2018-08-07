@@ -10,9 +10,12 @@ namespace compact {
 
 namespace vector_imp {
 
+template<typename IDX, unsigned BITS, typename W, typename Allocator, unsigned int UB, bool TS>
+class vector;
+
 template<typename IDX, typename W, typename Allocator, unsigned int UB, bool TS>
-class vector {
-  Allocator          m_allocator;
+class vector<IDX, 0, W, Allocator, UB, TS> {
+Allocator          m_allocator;
   size_t             m_size;    // Size in number of elements
   size_t             m_capacity; // Capacity in number of elements
   const unsigned int m_bits;    // Number of bits in an element
@@ -35,11 +38,11 @@ public:
     return total_bits / UB + (total_bits % UB != 0);
   }
 
-  typedef compact::iterator<IDX, W, TS, UB>     iterator;
-  typedef compact::const_iterator<IDX, W, UB>   const_iterator;
-  typedef compact::iterator<IDX, W, true, UB>   mt_iterator; // Multi thread safe version
-  typedef std::reverse_iterator<iterator>       reverse_iterator;
-  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef compact::iterator<IDX, 0, W, TS, UB>   iterator;
+  typedef compact::const_iterator<IDX, 0, W, UB> const_iterator;
+  typedef compact::iterator<IDX, 0, W, true, UB> mt_iterator; // Multi thread safe version
+  typedef std::reverse_iterator<iterator>        reverse_iterator;
+  typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
   vector(unsigned int b, size_t s, Allocator allocator = Allocator())
     : m_allocator(allocator)
@@ -115,11 +118,14 @@ protected:
 };
 } // namespace vector_imp
 
-template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class vector
-  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, false>
+template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
+class vector;
+
+template<typename IDX, typename W, typename Allocator>
+class vector<IDX, 0, W, Allocator>
+  : public vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val, false>
 {
-  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, false> super;
+  typedef vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val, false> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
@@ -145,11 +151,14 @@ public:
 };
 
 //unsigned int UB = bitsof<W>::val>
-template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class ts_vector
-  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, true>
+template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
+class ts_vector;
+
+template<typename IDX, typename W, typename Allocator>
+class ts_vector<IDX, 0, W, Allocator>
+  : public vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val, true>
 {
-  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val, true> super;
+  typedef vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val, true> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
@@ -174,11 +183,14 @@ public:
   { }
 };
 
-template<typename IDX, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class cas_vector
-  : public vector_imp::vector<IDX, W, Allocator, bitsof<W>::val - 1, true>
+template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
+class cas_vector;
+
+template<typename IDX, typename W, typename Allocator>
+class cas_vector<IDX, 0, W, Allocator>
+  : public vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val - 1, true>
 {
-  typedef vector_imp::vector<IDX, W, Allocator, bitsof<W>::val - 1, true> super;
+  typedef vector_imp::vector<IDX, 0, W, Allocator, bitsof<W>::val - 1, true> super;
 public:
   typedef typename super::iterator              iterator;
   typedef typename super::const_iterator        const_iterator;
