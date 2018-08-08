@@ -24,120 +24,125 @@ TEST(CompactVector, RequiredBits) {
 //
 
 // Class containing the different parameters
-template<typename IDX, typename W, bool TS, unsigned int UB>
+template<typename CV>
 struct TypeValueContainer {
-  typedef IDX                                                                vector_type;
-  typedef W                                                                  word_type;
-  typedef compact::vector_imp::vector_dyn<IDX, W, std::allocator<W>, UB, TS> compact_vector_type;
-  static const bool                                                          thread_safe = TS;
-  static const unsigned int                                                  used_bits   = UB;
+  typedef CV                                       compact_vector_type;
+  typedef typename compact_vector_type::word_type  word_type;
+  typedef typename compact_vector_type::value_type vector_type;
+  static constexpr bool                            thread_safe = compact_vector_type::thread_safe();
+  static constexpr unsigned int                    used_bits   = compact_vector_type::used_bits();
 };
-template<typename IDX, typename W, bool TS, unsigned int UB>
-const bool TypeValueContainer<IDX,W,TS,UB>::thread_safe;
-template<typename IDX, typename W, bool TS, unsigned int UB>
-const unsigned int TypeValueContainer<IDX,W,TS,UB>::used_bits;
 
 // Type parameterized test
 template<typename T>
-class CompactVectorTest : public ::testing::Test {
+class CompactVectorDynTest : public ::testing::Test {
 protected:
-  static constexpr int bits[4] = {5, 6, 8, 13};
-  static const size_t  size    = 1000;
+  static constexpr int bits[8] = {1, 2, 3, 4, 5, 6, 8, 13};
+  static constexpr size_t size = 1000;
 };
 template<typename T>
-constexpr int CompactVectorTest<T>::bits[4];
-template<typename T>
-const size_t CompactVectorTest<T>::size;
-TYPED_TEST_CASE_P(CompactVectorTest);
+constexpr int CompactVectorDynTest<T>::bits[8];
+// template<typename T>
+// const size_t CompactVectorDynTest<T>::size;
+TYPED_TEST_CASE_P(CompactVectorDynTest);
 
-TYPED_TEST_P(CompactVectorTest, Iterator) {
+template<typename CV>
+void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
+  EXPECT_EQ(size, vector1.size());
+  EXPECT_EQ((size_t)0, vector2.size());
+  EXPECT_EQ(vector1.bits(), vector2.bits());
+  EXPECT_EQ(vector1.bits(), vector3.bits());
+
   std::default_random_engine         generator;
-  for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
-    const int bits = this->bits[i];
-    SCOPED_TRACE(::testing::Message() << "bits:" << bits);
-    typename TypeParam::compact_vector_type vector1(bits, this->size);
-    typename TypeParam::compact_vector_type vector2(bits);
+  std::uniform_int_distribution<int> uni(0, (1 << (vector1.bits() - 1)) - 1);
 
-    EXPECT_EQ(this->size, vector1.size());
-    EXPECT_EQ((size_t)0, vector2.size());
-    EXPECT_EQ((unsigned int)bits, vector1.bits());
-    EXPECT_EQ((unsigned int)bits, vector2.bits());
-
-    std::uniform_int_distribution<int> uni(0, (1 << (bits - 1)) - 1);
-
-    std::vector<typename TypeParam::vector_type> ary;
-    {
-      auto it  = vector1.begin();
-      auto pit = it - 1;
-      for(size_t i = 0; i < this->size; ++i, pit = it, ++it) {
-        SCOPED_TRACE(::testing::Message() << "i:" << i);
-        ary.push_back(uni(generator));
-        *it = ary.back();
-        vector2.push_back(ary.back());
-        EXPECT_LE(vector2.size(), vector2.capacity());
-        EXPECT_LE(vector2.capacity(), 2*vector2.size());
-        EXPECT_EQ(ary.size(), vector2.size());
-        EXPECT_EQ(ary.back(), *it);
-        EXPECT_EQ(ary.back(), vector1.cbegin()[i]);
-        EXPECT_EQ(ary.back(), vector2.back());
-        EXPECT_EQ(ary.back(), vector2.cbegin()[i]);
-        EXPECT_EQ(ary.front(), vector1.front());
-        EXPECT_EQ(ary.front(), vector2.front());
-        EXPECT_EQ(it, &vector1.begin()[i]);
-        EXPECT_EQ((ssize_t)i, it - vector1.begin());
-        EXPECT_EQ(-(ssize_t)i, vector1.begin() - it);
-        EXPECT_EQ(it, vector1.begin() + i);
-        EXPECT_EQ(it, i + vector1.begin());
-        EXPECT_EQ(vector1.begin(), it - i);
-        EXPECT_EQ(pit, it - 1);
-        EXPECT_EQ(it, (it - 2) + 2);
-        EXPECT_TRUE(vector1.begin() <= it);
-        EXPECT_TRUE(it >= vector1.begin());
-      }
-      EXPECT_EQ(vector1.end(), it);
+  std::vector<typename CV::value_type> ary;
+  {
+    auto it  = vector1.begin();
+    auto pit = it - 1;
+    for(size_t i = 0; i < size; ++i, pit = it, ++it) {
+      SCOPED_TRACE(::testing::Message() << "i:" << i);
+      ary.push_back(uni(generator));
+      *it = ary.back();
+      vector2.push_back(ary.back());
+      EXPECT_LE(vector2.size(), vector2.capacity());
+      EXPECT_LE(vector2.capacity(), 2*vector2.size());
+      EXPECT_EQ(ary.size(), vector2.size());
+      EXPECT_EQ(ary.back(), *it);
+      EXPECT_EQ(ary.back(), vector1.cbegin()[i]);
+      EXPECT_EQ(ary.back(), vector2.back());
+      EXPECT_EQ(ary.back(), vector2.cbegin()[i]);
+      EXPECT_EQ(ary.front(), vector1.front());
+      EXPECT_EQ(ary.front(), vector2.front());
+      EXPECT_EQ(it, &vector1.begin()[i]);
+      EXPECT_EQ((ssize_t)i, it - vector1.begin());
+      EXPECT_EQ(-(ssize_t)i, vector1.begin() - it);
+      EXPECT_EQ(it, vector1.begin() + i);
+      EXPECT_EQ(it, i + vector1.begin());
+      EXPECT_EQ(vector1.begin(), it - i);
+      EXPECT_EQ(pit, it - 1);
+      EXPECT_EQ(it, (it - 2) + 2);
+      EXPECT_TRUE(vector1.begin() <= it);
+      EXPECT_TRUE(it >= vector1.begin());
     }
+    EXPECT_EQ(vector1.end(), it);
+  }
 
-    {
-      auto it1 = vector1.cbegin();
-      auto it2 = vector2.cbegin();
-      for(auto ait = ary.cbegin(); ait != ary.cend(); ++ait, ++it1, ++it2) {
-        SCOPED_TRACE(::testing::Message() << "i:" << (ait - ary.cbegin()));
-        EXPECT_EQ(ait - ary.cbegin(), it1 - vector1.cbegin());
-        EXPECT_EQ(*ait, *it1);
-        EXPECT_EQ(ait - ary.cbegin(), it2 - vector2.cbegin());
-        EXPECT_EQ(*ait, *it2);
-      }
+  {
+    auto it1 = vector1.cbegin();
+    auto it2 = vector2.cbegin();
+    for(auto ait = ary.cbegin(); ait != ary.cend(); ++ait, ++it1, ++it2) {
+      SCOPED_TRACE(::testing::Message() << "i:" << (ait - ary.cbegin()));
+      EXPECT_EQ(ait - ary.cbegin(), it1 - vector1.cbegin());
+      EXPECT_EQ(*ait, *it1);
+      EXPECT_EQ(ait - ary.cbegin(), it2 - vector2.cbegin());
+      EXPECT_EQ(*ait, *it2);
     }
+  }
 
-    {
-      std::vector<size_t> order;
-      auto it1 = vector1.cbegin();
-      for(size_t i = 0; i < this->size; ++i) order.push_back(i);
-      std::random_shuffle(order.begin(), order.end());
-      for(auto i : order) {
-        EXPECT_EQ(ary[i], it1[i]);
-        EXPECT_EQ(ary[i], vector2[i]);
-      }
+  {
+    std::vector<size_t> order;
+    auto it1 = vector1.cbegin();
+    for(size_t i = 0; i < size; ++i) order.push_back(i);
+    std::random_shuffle(order.begin(), order.end());
+    for(auto i : order) {
+      EXPECT_EQ(ary[i], it1[i]);
+      EXPECT_EQ(ary[i], vector2[i]);
     }
+  }
 
-    // Test negative numbers, if vector1 is a signed type
-    if(std::is_signed<typename TypeParam::vector_type>::value) {
-      auto it = vector1.begin();
-      typename TypeParam::compact_vector_type vector3(bits);
-      for(size_t i = 0; i < this->size; ++i) {
-        it[i] = -ary[i];
-        vector3.push_back(-ary[i]);
-      }
-      EXPECT_EQ(ary.size(), vector3.size());
-      for(size_t i = 0; i < this->size; ++i) {
-        EXPECT_EQ(-ary[i], it[i]);
-        EXPECT_EQ(-ary[i], vector3[i]);
-      }
+  // Test negative numbers, if vector1 is a signed type
+  if(std::is_signed<typename CV::value_type>::value) {
+    auto it = vector1.begin();
+    for(size_t i = 0; i < size; ++i) {
+      it[i] = -ary[i];
+      vector3.push_back(-ary[i]);
     }
-  } // for(). Loop over this->bits
+    EXPECT_EQ(ary.size(), vector3.size());
+    for(size_t i = 0; i < size; ++i) {
+      EXPECT_EQ(-ary[i], it[i]);
+      EXPECT_EQ(-ary[i], vector3[i]);
+    }
+  }
 }
 
-TYPED_TEST_P(CompactVectorTest, Swap) {
+TYPED_TEST_P(CompactVectorDynTest, DynIterator) {
+  for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
+    const int bits = this->bits[i];
+    SCOPED_TRACE(::testing::Message() << "Dynamic bits:" << bits);
+    typename TypeParam::compact_vector_type vector1(bits, this->size);
+    typename TypeParam::compact_vector_type vector2(bits);
+    typename TypeParam::compact_vector_type vector3(bits);
+
+    EXPECT_EQ((unsigned int)bits, vector1.bits());
+    EXPECT_EQ((unsigned int)bits, vector2.bits());
+    EXPECT_EQ((unsigned int)bits, vector3.bits());
+
+    single_thread_test(this->size, vector1, vector2, vector3);
+  }
+}
+
+TYPED_TEST_P(CompactVectorDynTest, DynSwap) {
   std::default_random_engine         generator;
 
   for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
@@ -166,22 +171,81 @@ TYPED_TEST_P(CompactVectorTest, Swap) {
   } // for(). Loop over this->bits
 } // CompactIterator.Swap
 
-// Instantiate the typed tests with too many values
-REGISTER_TYPED_TEST_CASE_P(CompactVectorTest, Iterator, Swap);
-typedef ::testing::Types<TypeValueContainer<int, uint64_t, false, compact::bitsof<uint64_t>::val>,
-                         TypeValueContainer<unsigned int, uint64_t, false, compact::bitsof<uint64_t>::val>,
+// Instantiate the typed tests for dynamic bits
+REGISTER_TYPED_TEST_CASE_P(CompactVectorDynTest, DynIterator, DynSwap);
+typedef ::testing::Types<TypeValueContainer<compact::vector<int>>,
+                         TypeValueContainer<compact::vector<unsigned>>,
 
                          // Same thing with uint32 word type
-                         TypeValueContainer<int, uint32_t, false, compact::bitsof<uint32_t>::val>,
-                         TypeValueContainer<unsigned int, uint32_t, false, compact::bitsof<uint32_t>::val>,
+                         TypeValueContainer<compact::vector<int, 0, uint32_t>>,
+                         TypeValueContainer<compact::vector<unsigned, 0, uint32_t>>,
 
-                         // Same tests, but don't use every bits in the words
-                         TypeValueContainer<int, uint64_t, false, compact::bitsof<uint64_t>::val - 1>,
-                         TypeValueContainer<unsigned int, uint64_t, false, compact::bitsof<uint64_t>::val - 1>,
-                         TypeValueContainer<int, uint32_t, false, compact::bitsof<uint32_t>::val - 1>,
-                         TypeValueContainer<unsigned int, uint32_t, false, compact::bitsof<uint32_t>::val - 1>
+                         // Same tests with other vector types (with different thread safety)
+                         TypeValueContainer<compact::ts_vector<int>>,
+                         TypeValueContainer<compact::ts_vector<unsigned>>,
+                         TypeValueContainer<compact::ts_vector<int, 0, uint32_t>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 0, uint32_t>>,
+
+                         TypeValueContainer<compact::cas_vector<int>>,
+                         TypeValueContainer<compact::cas_vector<unsigned>>,
+                         TypeValueContainer<compact::cas_vector<int, 0, uint32_t>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 0, uint32_t>>
                          > compact_vector_types;
-INSTANTIATE_TYPED_TEST_CASE_P(CompactVector, CompactVectorTest, compact_vector_types);
+INSTANTIATE_TYPED_TEST_CASE_P(CompactVectorDyn, CompactVectorDynTest, compact_vector_types);
+
+// Same test but with static bits usage
+template<typename T>
+class CompactVectorStatTest : public ::testing::Test {
+protected:
+  static constexpr size_t size = 1000;
+};
+TYPED_TEST_CASE_P(CompactVectorStatTest);
+TYPED_TEST_P(CompactVectorStatTest, StatIterator) {
+  typedef typename TypeParam::compact_vector_type compact_vector_type;
+  SCOPED_TRACE(::testing::Message() << "Static bits:" << compact_vector_type::static_bits());
+  compact_vector_type vector1(this->size);
+  compact_vector_type vector2, vector3;
+
+  EXPECT_EQ(vector1.static_bits(), vector1.bits());
+  EXPECT_EQ(vector2.static_bits(), vector2.bits());
+  EXPECT_EQ(vector3.static_bits(), vector3.bits());
+
+  single_thread_test(this->size, vector1, vector2, vector3);
+}
+REGISTER_TYPED_TEST_CASE_P(CompactVectorStatTest, StatIterator);
+typedef ::testing::Types<TypeValueContainer<compact::vector<int, 1>>,
+                         TypeValueContainer<compact::vector<int, 2>>,
+                         TypeValueContainer<compact::vector<int, 3>>,
+                         TypeValueContainer<compact::vector<int, 4>>,
+                         TypeValueContainer<compact::vector<int, 5>>,
+                         TypeValueContainer<compact::vector<unsigned, 1>>,
+                         TypeValueContainer<compact::vector<unsigned, 2>>,
+                         TypeValueContainer<compact::vector<unsigned, 3>>,
+                         TypeValueContainer<compact::vector<unsigned, 4>>,
+                         TypeValueContainer<compact::vector<unsigned, 5>>,
+                         TypeValueContainer<compact::ts_vector<int, 1>>,
+                         TypeValueContainer<compact::ts_vector<int, 2>>,
+                         TypeValueContainer<compact::ts_vector<int, 3>>,
+                         TypeValueContainer<compact::ts_vector<int, 4>>,
+                         TypeValueContainer<compact::ts_vector<int, 5>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 1>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 2>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 3>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 4>>,
+                         TypeValueContainer<compact::ts_vector<unsigned, 5>>,
+                         TypeValueContainer<compact::cas_vector<int, 1>>,
+                         TypeValueContainer<compact::cas_vector<int, 2>>,
+                         TypeValueContainer<compact::cas_vector<int, 3>>,
+                         TypeValueContainer<compact::cas_vector<int, 4>>,
+                         TypeValueContainer<compact::cas_vector<int, 5>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 1>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 2>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 3>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 4>>,
+                         TypeValueContainer<compact::cas_vector<unsigned, 5>>
+                         > compact_vector_stat_types;
+INSTANTIATE_TYPED_TEST_CASE_P(CompactVectorStat, CompactVectorStatTest, compact_vector_stat_types);
+
 
 TEST(CompactIterator, Nullptr) {
   compact::iterator<int> it = nullptr;

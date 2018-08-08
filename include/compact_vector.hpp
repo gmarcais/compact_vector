@@ -45,14 +45,11 @@ public:
     , m_size(s)
     , m_capacity(s)
     , m_mem(m_allocator.allocate(mem))
-      //  , m_mem(m_allocator.allocate(elements_to_words(m_capacity, m_bits)))
   {
     static_assert(UB <= bitsof<W>::val, "used_bits must be less or equal to the number of bits in the word_type");
     static_assert(BITS <= UB, "number of bits larger than usable bits");
-    // if(b > UB)
-    //   throw std::out_of_range("Number of bits larger than usable bits");
   }
-  explicit vector(unsigned b, Allocator allocator = Allocator())
+  explicit vector(Allocator allocator = Allocator())
     : vector(0, 0, allocator)
   { }
   ~vector() {
@@ -102,6 +99,9 @@ public:
   const W* get() const { return m_mem; }
   size_t bytes() const { return sizeof(W) * elements_to_words(m_capacity, bits()); }
   inline unsigned bits() const { return static_cast<const Derived*>(this)->bits(); }
+  static constexpr unsigned static_bits() { return BITS; }
+  static constexpr unsigned used_bits() { return UB; }
+  static constexpr bool thread_safe() { return TS; }
 
 protected:
   void enlarge() {
@@ -136,14 +136,13 @@ public:
   typedef ptrdiff_t                             difference_type;
   typedef size_t                                size_type;
   typedef W                                     word_type;
-  static constexpr unsigned                 used_bits = bitsof<W>::val;
 
   vector_dyn(unsigned b, size_t s, Allocator allocator = Allocator())
     : super(s, super::elements_to_words(s, b), allocator)
     , m_bits(b)
   { }
   vector_dyn(unsigned b, Allocator allocator = Allocator())
-    : super(b, allocator)
+    : super(allocator)
     , m_bits(b)
   { }
 
@@ -153,7 +152,35 @@ public:
 } // namespace vector_imp
 
 template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class vector;
+class vector
+  : public vector_imp::vector<vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val, false>
+{
+  typedef vector_imp::vector<vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val, false> super;
+
+public:
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::lhs_setter_type    reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+
+  vector(size_t s, Allocator allocator = Allocator())
+    : super(s, super::elements_to_words(s, BITS), allocator)
+  { }
+  vector(Allocator allocator = Allocator())
+    : super(allocator)
+  { }
+
+  static constexpr unsigned bits() { return BITS; }
+};
 
 template<typename IDX, typename W, typename Allocator>
 class vector<IDX, 0, W, Allocator>
@@ -175,18 +202,49 @@ public:
   typedef ptrdiff_t                             difference_type;
   typedef size_t                                size_type;
   typedef W                                     word_type;
-  static constexpr unsigned                 used_bits = bitsof<W>::val;
 
   vector(unsigned b, size_t s, Allocator allocator = Allocator())
     : super(b, s, allocator)
-  { }
+  {
+    if(b > bitsof<W>::val)
+      throw std::out_of_range("Number of bits larger than usable bits");
+  }
   vector(unsigned b, Allocator allocator = Allocator())
     : super(b, allocator)
   { }
 };
 
 template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class ts_vector;
+class ts_vector
+  : public vector_imp::vector<ts_vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val, true>
+{
+  typedef vector_imp::vector<ts_vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val, true> super;
+
+public:
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::lhs_setter_type    reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+
+  ts_vector(size_t s, Allocator allocator = Allocator())
+    : super(s, super::elements_to_words(s, BITS), allocator)
+  { }
+  ts_vector(Allocator allocator = Allocator())
+    : super(allocator)
+  { }
+
+  static constexpr unsigned bits() { return BITS; }
+};
+
 
 template<typename IDX, typename W, typename Allocator>
 class ts_vector<IDX, 0, W, Allocator>
@@ -207,18 +265,48 @@ public:
   typedef ptrdiff_t                             difference_type;
   typedef size_t                                size_type;
   typedef W                                     word_type;
-  static constexpr unsigned                     used_bits = bitsof<W>::val;
 
   ts_vector(unsigned b, size_t s, Allocator allocator = Allocator())
     : super(b, s, allocator)
-  { }
+  {
+    if(b > bitsof<W>::val)
+      throw std::out_of_range("Number of bits larger than usable bits");
+  }
   ts_vector(unsigned b, Allocator allocator = Allocator())
     : super(b, allocator)
   { }
 };
 
 template<typename IDX, unsigned BITS = 0, typename W = uint64_t, typename Allocator = std::allocator<W>>
-class cas_vector;
+class cas_vector
+  : public vector_imp::vector<cas_vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val-1, true>
+{
+  typedef vector_imp::vector<cas_vector<IDX, BITS, W, Allocator>, IDX, BITS, W, Allocator, bitsof<W>::val-1, true> super;
+
+public:
+  typedef typename super::iterator              iterator;
+  typedef typename super::const_iterator        const_iterator;
+  typedef IDX                                   value_type;
+  typedef Allocator                             allocator_type;
+  typedef typename iterator::lhs_setter_type    reference;
+  typedef const reference                       const_reference;
+  typedef iterator                              pointer;
+  typedef const_iterator                        const_pointer;
+  typedef std::reverse_iterator<iterator>       reverse_iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef ptrdiff_t                             difference_type;
+  typedef size_t                                size_type;
+  typedef W                                     word_type;
+
+  cas_vector(size_t s, Allocator allocator = Allocator())
+    : super(s, super::elements_to_words(s, BITS), allocator)
+  { }
+  cas_vector(Allocator allocator = Allocator())
+    : super(allocator)
+  { }
+
+  static constexpr unsigned bits() { return BITS; }
+};
 
 template<typename IDX, typename W, typename Allocator>
 class cas_vector<IDX, 0, W, Allocator>
@@ -239,11 +327,13 @@ public:
   typedef ptrdiff_t                             difference_type;
   typedef size_t                                size_type;
   typedef W                                     word_type;
-  static constexpr unsigned                 used_bits = bitsof<W>::val - 1;
 
   cas_vector(unsigned b, size_t s, Allocator allocator = Allocator())
     : super(b, s, allocator)
-  { }
+  {
+    if(b > bitsof<W>::val - 1)
+      throw std::out_of_range("Number of bits larger than usable bits");
+  }
   cas_vector(unsigned b, Allocator allocator = Allocator())
     : super(b, allocator)
   { }
