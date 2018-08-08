@@ -26,11 +26,11 @@ TEST(CompactVector, RequiredBits) {
 // Class containing the different parameters
 template<typename IDX, typename W, bool TS, unsigned int UB>
 struct TypeValueContainer {
-  typedef IDX                                                               vector_type;
-  typedef W                                                                 word_type;
-  typedef compact::vector_imp::vector<IDX, 0, W, std::allocator<W>, UB, TS> compact_vector_type;
-  static const bool                                                         thread_safe = TS;
-  static const unsigned int                                                 used_bits   = UB;
+  typedef IDX                                                                vector_type;
+  typedef W                                                                  word_type;
+  typedef compact::vector_imp::vector_dyn<IDX, W, std::allocator<W>, UB, TS> compact_vector_type;
+  static const bool                                                          thread_safe = TS;
+  static const unsigned int                                                  used_bits   = UB;
 };
 template<typename IDX, typename W, bool TS, unsigned int UB>
 const bool TypeValueContainer<IDX,W,TS,UB>::thread_safe;
