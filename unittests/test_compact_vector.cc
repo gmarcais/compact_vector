@@ -7,8 +7,11 @@
 
 #include <compact_iterator.hpp>
 #include <compact_vector.hpp>
+#include <misc.hpp>
 
 namespace {
+static auto prg = seeded_prg<std::mt19937_64>();
+
 TEST(CompactVector, RequiredBits) {
   for(unsigned int i = 1; i < sizeof(size_t) * 8 - 1; ++i) {
     size_t s = (size_t)1 << i;
@@ -53,7 +56,6 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
   EXPECT_EQ(vector1.bits(), vector2.bits());
   EXPECT_EQ(vector1.bits(), vector3.bits());
 
-  std::default_random_engine         generator;
   std::uniform_int_distribution<int> uni(0, (1 << (vector1.bits() - 1)) - 1);
 
   std::vector<typename CV::value_type> ary;
@@ -62,7 +64,7 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
     auto pit = it - 1;
     for(size_t i = 0; i < size; ++i, pit = it, ++it) {
       SCOPED_TRACE(::testing::Message() << "i:" << i);
-      ary.push_back(uni(generator));
+      ary.push_back(uni(prg));
       *it = ary.back();
       vector2.push_back(ary.back());
       EXPECT_LE(vector2.size(), vector2.capacity());
@@ -143,15 +145,13 @@ TYPED_TEST_P(CompactVectorDynTest, DynIterator) {
 }
 
 TYPED_TEST_P(CompactVectorDynTest, DynSwap) {
-  std::default_random_engine         generator;
-
   for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
     const int                              bits = this->bits[i];
     SCOPED_TRACE(::testing::Message() << "bits:" << bits);
     typename TypeParam::compact_vector_type vector(bits, this->size);
     std::uniform_int_distribution<int>     uni(0, (1 << (bits - 1)) - 1);
-    const typename TypeParam::vector_type   v1   = uni(generator);
-    const typename TypeParam::vector_type   v2   = uni(generator);
+    const typename TypeParam::vector_type   v1   = uni(prg);
+    const typename TypeParam::vector_type   v2   = uni(prg);
 
     auto it = vector.begin();
     auto jt = it + 10;
