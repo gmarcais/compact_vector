@@ -33,12 +33,12 @@ int main(int argc, char *argv[]) {
   auto                    prg  = seeded_prg<std::mt19937_64>();
   static constexpr size_t size = 100000000;
 
-  timer total;
+  timer shuffle_time;
   std::vector<size_t>     order(size);
   for(size_t i = 0; i < size; ++i)
     order[i] = i;
   std::shuffle(order.begin(), order.end(), prg);
-  std::cout << "Shuffle: " << total << std::endl;
+  std::cout << "Shuffle: " << shuffle_time << std::endl;
 
   { std::cout << "std::vector<bool>:";
     timer t;
