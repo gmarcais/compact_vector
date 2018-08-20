@@ -61,13 +61,19 @@ template<typename IDX, unsigned BITS, typename W, unsigned UB>
 struct gs {
   static IDX get(const W* p, unsigned o) {
     static constexpr size_t Wbits  = bitsof<W>::val;
-    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-    W                       mask   = ((~(W)0 >> (Wbits - BITS)) << o) & ubmask;
-    IDX                     res    = (*p & mask) >> o;
+    IDX res;
+
+    if(UB == Wbits) {
+      constexpr W mask = ~(W)0 >> (Wbits - BITS);
+      res = (*p >> o) & mask;
+    } else {
+      const W mask = ~(W)0 >> (Wbits - BITS + (o > UB - BITS));
+      res = (*p >> o) & mask;
+    }
 
     if(!divides(BITS, UB) && o + BITS > UB) {
       const unsigned over  = o + BITS - UB;
-      mask                 = ~(W)0 >> (Wbits - over);
+      const uint64_t mask  = ~(W)0 >> (Wbits - over);
       res                 |= (*(p + 1) & mask) << (BITS - over);
     }
     if(std::is_signed<IDX>::value && res & ((IDX)1 << (BITS - 1)))
