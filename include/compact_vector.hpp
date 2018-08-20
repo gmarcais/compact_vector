@@ -13,6 +13,7 @@ inline int clz(unsigned int x) { return __builtin_clz(x); }
 inline int clz(unsigned long x) { return __builtin_clzl(x); }
 inline int clz(unsigned long long x) { return __builtin_clzll(x); }
 
+// XXX TODO Missing copy and move constructors
 template<class Derived,
          typename IDX, unsigned BITS, typename W, typename Allocator, unsigned UB, bool TS>
 class vector {
@@ -34,9 +35,9 @@ public:
     return total_bits / UB + (total_bits % UB != 0);
   }
 
-  typedef compact::iterator<IDX, 0, W, TS, UB>   iterator;
-  typedef compact::const_iterator<IDX, 0, W, UB> const_iterator;
-  typedef compact::iterator<IDX, 0, W, true, UB> mt_iterator; // Multi thread safe version
+  typedef compact::iterator<IDX, BITS, W, TS, UB>   iterator;
+  typedef compact::const_iterator<IDX, BITS, W, UB> const_iterator;
+  typedef compact::iterator<IDX, BITS, W, true, UB> mt_iterator; // Multi thread safe version
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
@@ -73,8 +74,18 @@ public:
   mt_iterator mt_begin() { return mt_iterator(m_mem, bits(), 0); }
   mt_iterator mt_end() { return begin() + m_size; }
 
-  IDX operator[](size_t i) const { return cbegin()[i]; }
-  typename iterator::lhs_setter_type operator[](size_t i) { return begin()[i]; }
+  IDX operator[](size_t i) const {
+    return BITS
+      ? *const_iterator(m_mem + (i * BITS) / UB, BITS, (i * BITS) % UB)
+      : *const_iterator(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
+    // return cbegin()[i];
+  }
+  typename iterator::lhs_setter_type operator[](size_t i) {
+    return BITS
+      ? typename iterator::lhs_setter_type(m_mem + (i * BITS) / UB, BITS, (i * BITS) % UB)
+      : typename iterator::lhs_setter_type(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
+    //  return begin()[i];
+  }
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
   IDX back() const { return *(cbegin() + (m_size - 1)); }

@@ -64,6 +64,7 @@ struct gs {
     static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
     W                       mask   = ((~(W)0 >> (Wbits - BITS)) << o) & ubmask;
     IDX                     res    = (*p & mask) >> o;
+
     if(!divides(BITS, UB) && o + BITS > UB) {
       const unsigned over  = o + BITS - UB;
       mask                 = ~(W)0 >> (Wbits - over);
@@ -308,6 +309,7 @@ struct mask_store<W, true> {
 };
 
 
+// Base class for the iterators
 template<class Derived, typename IDX, unsigned BITS, typename W, unsigned UB>
 class common {
 public:
@@ -596,7 +598,7 @@ public:
   lhs_setter_common(W* p, unsigned o) : ptr(p), offset(o) { }
   operator IDX() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return gs<IDX, 0, W, UB>::get(ptr, self.bits(), offset);
+    return gs<IDX, BITS, W, UB>::get(ptr, self.bits(), offset);
   }
   iterator operator&() {
     Derived& self = *static_cast<Derived*>(this);
@@ -632,6 +634,27 @@ public:
   unsigned bits() const { return m_bits; }
 };
 
+template<typename IDX, unsigned BITS, typename W, bool TS, unsigned UB>
+class lhs_setter
+  : public lhs_setter_common<lhs_setter<IDX, BITS, W, TS, UB>, IDX, BITS, W, TS, UB>
+{
+  typedef lhs_setter_common<lhs_setter<IDX, BITS, W, TS, UB>, IDX, BITS, W, TS, UB> super;
+
+public:
+  lhs_setter(W* p, int o) : super(p, o) { }
+  lhs_setter(W* p, unsigned bits, int o) : super(p, o) { }
+  lhs_setter& operator=(const IDX x) {
+    gs<IDX, BITS, W, UB>::template set<TS>(x, super::ptr, super::offset);
+    return *this;
+  }
+  lhs_setter& operator=(const lhs_setter& rhs) {
+    gs<IDX, BITS, W, UB>::template set<TS>((IDX)rhs, super::ptr, super::offset);
+    return *this;
+  }
+
+  constexpr unsigned bits() const { return BITS; }
+};
+
 template<typename I, unsigned BITS, typename W, bool TS, unsigned UB>
 void swap(lhs_setter<I, BITS, W, TS, UB> x, lhs_setter<I, BITS, W, TS, UB> y) {
   I t = x;
@@ -641,6 +664,7 @@ void swap(lhs_setter<I, BITS, W, TS, UB> x, lhs_setter<I, BITS, W, TS, UB> y) {
 
 } // namespace iterator_imp
 
+// Specialization with BITS=0 (dynamic/runtime number of bits used)
 template<typename IDX, typename W, bool TS, unsigned UB>
 class iterator<IDX, 0, W, TS, UB> :
     public std::iterator<std::random_access_iterator_tag, IDX>,
@@ -723,6 +747,95 @@ public:
 
   unsigned bits() const { return m_bits; }
   void bits(unsigned b) { m_bits = b; }
+};
+
+
+// No specialization. Static number of bits used.
+template<typename IDX, unsigned BITS, typename W, bool TS, unsigned UB>
+class iterator :
+    public std::iterator<std::random_access_iterator_tag, IDX>,
+    public iterator_imp::common<iterator<IDX, BITS, W, TS, UB>, IDX, BITS, W, UB>
+{
+  W*       m_ptr;
+  unsigned m_offset;
+
+  friend class iterator<IDX, BITS, W, !TS, UB>;
+  friend class const_iterator<IDX, BITS, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, BITS, W, TS, UB>, IDX, BITS, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>;
+
+  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+public:
+  typedef typename super::value_type                  value_type;
+  typedef typename super::difference_type             difference_type;
+  typedef IDX                                         idx_type;
+  typedef W                                           word_type;
+  typedef iterator_imp::lhs_setter<IDX, BITS, W, TS, UB> lhs_setter_type;
+
+  iterator() = default;
+  iterator(W* p, unsigned o)
+    : m_ptr(p), m_offset(o) { }
+  iterator(W* p, unsigned b, unsigned o)
+    : m_ptr(p), m_offset(o) { } // XXX Should we assert that BITS == b?
+  template<bool TTS>
+  iterator(const iterator<IDX, BITS, W, TTS>& rhs)
+    : m_ptr(rhs.m_ptr), m_offset(rhs.m_offset) { }
+  iterator(std::nullptr_t)
+    : m_ptr(nullptr), m_offset(0) { }
+
+  lhs_setter_type operator*() { return lhs_setter_type(m_ptr, m_offset); }
+  lhs_setter_type operator[](const difference_type n) const {
+    return *(*this + n);
+  }
+
+  // CAS val. Does NOT return existing value at pointer. Return true
+  // if successful.
+  inline bool cas(const IDX x, const IDX exp) {
+    return iterator_imp::gs<IDX, BITS, W, UB>::cas(x, exp, m_ptr, m_offset);
+  }
+
+  constexpr unsigned bits() const { return BITS; }
+protected:
+  void bits(unsigned b) { } // NOOP
+};
+
+template<typename IDX, unsigned BITS, typename W, unsigned UB>
+class const_iterator :
+  public std::iterator<std::random_access_iterator_tag, const IDX>,
+  public iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>
+{
+  const W* m_ptr;
+  unsigned m_offset;
+
+  friend class iterator<IDX, BITS, W>;
+  friend class iterator_imp::common<iterator<IDX, BITS, W, true, UB>, IDX, BITS, W, UB>;
+  friend class iterator_imp::common<iterator<IDX, BITS, W, false, UB>, IDX, BITS, W, UB>;
+  friend class iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>;
+
+  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+public:
+  typedef typename super::value_type      value_type;
+  typedef typename super::difference_type difference_type;
+  typedef IDX idx_type;
+  typedef W   word_type;
+
+
+  const_iterator() = default;
+  const_iterator(const W* p, unsigned o)
+    : m_ptr(p), m_offset(o) { }
+  const_iterator(const W* p, unsigned b, unsigned o)
+    : m_ptr(p), m_offset(o) { }
+  const_iterator(const const_iterator& rhs)
+    : m_ptr(rhs.m_ptr), m_offset(rhs.m_offset) { }
+  template<bool TS>
+  const_iterator(const iterator<IDX, BITS, W, TS>& rhs)
+    : m_ptr(rhs.m_ptr), m_offset(rhs.m_offset) { }
+  const_iterator(std::nullptr_t)
+    : m_ptr(nullptr), m_offset(0) { }
+
+  constexpr unsigned bits() const { return BITS; }
+protected:
+  void bits(unsigned b) { } // NOOP
 };
 
 template<typename I, unsigned BITS, typename W, bool TS, unsigned UB>
