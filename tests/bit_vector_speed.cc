@@ -31,7 +31,12 @@ void flip_bits(const std::vector<size_t>& order, T& v) {
 
 int main(int argc, char *argv[]) {
   auto                    prg  = seeded_prg<std::mt19937_64>();
-  static constexpr size_t size = 100000000;
+  static constexpr size_t size = 200000000;
+
+  int which = 0;
+  if(argc > 1) {
+    which = atoi(argv[1]);
+  }
 
   timer shuffle_time;
   std::vector<size_t>     order(size);
@@ -40,7 +45,8 @@ int main(int argc, char *argv[]) {
   std::shuffle(order.begin(), order.end(), prg);
   std::cout << "Shuffle: " << shuffle_time << std::endl;
 
-  { std::cout << "std::vector<bool>:";
+  if(which == 0) {
+    std::cout << "std::vector<bool>:";
     timer t;
     { std::vector<bool> v(size);
       std::cout << ' ' << t;
@@ -49,7 +55,8 @@ int main(int argc, char *argv[]) {
     std::cout << ' ' << t << std::endl;
   }
 
-  { std::cout << "compact::vector<unsigned char, 1>:";
+  if(which == 1) {
+    std::cout << "compact::vector<unsigned char, 1>:";
     timer t;
     { compact::vector<unsigned char, 1> v(size);
       std::cout << ' ' << t;
@@ -58,13 +65,19 @@ int main(int argc, char *argv[]) {
     std::cout << ' ' << t << std::endl;
   }
 
-  { std::cout << "compact::vector<unsigned char>(1):";
+  if(which == 2) {
+    std::cout << "compact::vector<unsigned char>(1):";
     timer t;
     { compact::vector<unsigned char> v(1, size);
       std::cout << ' ' << t;
       flip_bits(order, v);
     }
     std::cout << ' ' << t << std::endl;
+  }
+
+  if(which >= 3 || which < 0) {
+    std::cerr << "Invalid switch\n";
+    return 1;
   }
 
   return 0;
