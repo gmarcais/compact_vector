@@ -14,6 +14,4 @@ AC_LANG(C++)
 AC_PROG_CC
 AC_PROG_CXX
 
-PKG_CHECK_MODULES([GTEST], [gtest])
-
 AC_OUTPUT([Makefile])
