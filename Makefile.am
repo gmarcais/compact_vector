@@ -1,5 +1,13 @@
 AM_CXXFLAGS = -Wall -Werror -std=c++11 -I$(top_srcdir)/include -I$(top_srcdir)/tests
 
+pkginclude_HEADERS = include/compact_iterator.hpp		\
+                     include/compact_vector.hpp			\
+                     include/const_iterator_traits.hpp		\
+                     include/parallel_iterator_traits.hpp	\
+                     include/prefetch_iterator_traits.hpp
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = compact_vector.pc
+
 ##############################
 # Unit tests
 ##############################
