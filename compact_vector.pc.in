@@ -1,0 +1,9 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: compact_vector
+Description: A C++ library for bit-packed multi-thread safe vectors
+Version: @PACKAGE_VERSION@
+Cflags: -I${includedir}
