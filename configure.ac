@@ -11,4 +11,6 @@ AC_LANG(C++)
 AC_PROG_CC
 AC_PROG_CXX
 
+PKG_CHECK_MODULES([GTEST], [gtest], [], [AC_MSG_WARN([Gtest is not installed. Running unit tests with 'make check' will not work.])])
+
 AC_OUTPUT([Makefile compact_vector.pc])
