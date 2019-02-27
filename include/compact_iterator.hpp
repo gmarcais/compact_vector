@@ -77,7 +77,7 @@ struct gs {
       res                 |= (*(p + 1) & mask) << (BITS - over);
     }
     if(std::is_signed<IDX>::value && res & ((IDX)1 << (BITS - 1)))
-      res |= ~(IDX)0 << BITS;
+      res |= ~static_cast<typename std::make_unsigned<IDX>::type>(0) << BITS;
 
     return res;
   }
