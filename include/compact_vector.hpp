@@ -41,6 +41,20 @@ public:
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
+  vector(vector &&rhs):
+        m_allocator(std::move(rhs.m_allocator)),
+        m_size(rhs.m_size),
+        m_capacity(rhs.m_capacity),
+        m_mem(rhs.m_mem)
+  {
+      rhs.m_size = rhs.m_capacity = 0;
+      rhs.m_mem = nullptr;
+  }
+  vector(const vector &rhs): m_allocator(rhs.m_allocator), m_size(rhs.m_size), m_capacity(rhs.m_capacity) {
+     m_mem = m_allocator.allocate(elements_to_words(m_capacity, bits()));
+     std::memcpy(m_mem, rhs.m_mem, bytes());
+  }
+
   vector(size_t s, size_t mem, Allocator allocator = Allocator())
     : m_allocator(allocator)
     , m_size(s)
