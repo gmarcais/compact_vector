@@ -3,6 +3,7 @@
 
 #include <new>
 #include <stdexcept>
+#include <cstring>
 
 #include "compact_iterator.hpp"
 
@@ -31,7 +32,7 @@ public:
   }
 
   static size_t elements_to_words(size_t size, unsigned bits) {
-    size_t total_bits = size * bits;
+    const size_t total_bits = size * bits;
     return total_bits / UB + (total_bits % UB != 0);
   }
 
@@ -41,18 +42,22 @@ public:
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
-  vector(vector &&rhs):
-        m_allocator(std::move(rhs.m_allocator)),
-        m_size(rhs.m_size),
-        m_capacity(rhs.m_capacity),
-        m_mem(rhs.m_mem)
+  vector(vector &&rhs)
+    : m_allocator(std::move(rhs.m_allocator))
+    , m_size(rhs.m_size)
+    , m_capacity(rhs.m_capacity)
+    , m_mem(rhs.m_mem)
   {
-      rhs.m_size = rhs.m_capacity = 0;
-      rhs.m_mem = nullptr;
+    rhs.m_size = rhs.m_capacity = 0;
+    rhs.m_mem = nullptr;
   }
-  vector(const vector &rhs): m_allocator(rhs.m_allocator), m_size(rhs.m_size), m_capacity(rhs.m_capacity) {
-     m_mem = m_allocator.allocate(elements_to_words(m_capacity, bits()));
-     std::memcpy(m_mem, rhs.m_mem, bytes());
+  vector(const vector &rhs)
+    : m_allocator(rhs.m_allocator)
+    , m_size(rhs.m_size)
+    , m_capacity(rhs.m_capacity)
+  {
+    m_mem = m_allocator.allocate(elements_to_words(rhs.m_capacity, rhs.bits()));
+    std::memcpy(m_mem, rhs.m_mem, rhs.bytes());
   }
 
   vector(size_t s, size_t mem, Allocator allocator = Allocator())
@@ -69,6 +74,26 @@ public:
   { }
   ~vector() {
     m_allocator.deallocate(m_mem, elements_to_words(m_capacity, bits()));
+  }
+
+  vector& operator=(const vector& rhs) {
+    m_allocator = rhs.m_allocator;
+    m_size      = rhs.m_size;
+    m_capacity  = rhs.m_capacity;
+    m_mem       = m_allocator.allocate(elements_to_words(m_capacity, bits()));
+    std::memcpy(m_mem, rhs.m_mem, bytes());
+    return *this;
+  }
+
+  vector& operator=(vector&& rhs) {
+    m_allocator = std::move(rhs.m_allocator);
+    m_size      = rhs.m_size;
+    m_capacity  = rhs.m_capacity;
+    m_mem       = rhs.m_mem;
+
+    rhs.m_size = rhs.m_capacity = 0;
+    rhs.m_mem  = nullptr;
+    return *this;
   }
 
   const_iterator begin() const { return const_iterator(m_mem, bits(), 0); }
@@ -171,7 +196,31 @@ public:
     , m_bits(b)
   { }
 
+  vector_dyn(vector_dyn&& rhs)
+    : super(std::move(rhs))
+    , m_bits(rhs.bits())
+  { }
+
+  vector_dyn(const vector_dyn& rhs)
+    : super(rhs)
+    , m_bits(rhs.bits())
+  { }
+
   inline unsigned bits() const { return m_bits; }
+
+  vector_dyn& operator=(const vector_dyn& rhs) {
+    if(bits() != rhs.bits())
+      throw std::invalid_argument("Bit length of compacted vector differ");
+    static_cast<super*>(this)->operator=(rhs);
+    return *this;
+  }
+
+  vector_dyn& operator=(vector_dyn&& rhs) {
+    if(bits() != rhs.bits())
+      throw std::invalid_argument("Bit length of compacted vector differ");
+    static_cast<super*>(this)->operator=(std::move(rhs));
+    return *this;
+  }
 };
 
 } // namespace vector_imp

@@ -16,7 +16,7 @@ check_PROGRAMS = all_tests bit_vector_speed
 
 all_tests_CXXFLAGS = $(AM_CXXFLAGS) $(GTEST_CFLAGS) # -I$(top_srcdir)/unittests
 all_tests_LDFLAGS = -pthread
-all_tests_LDADD = $(GTEST_LIBS) -lgtest_main
+all_tests_LDADD = $(GTEST_LIBS)
 all_tests_SOURCES = unittests/test_compact_vector.cc unittests/test_dyn.cc unittests/test_stat.cc
 all_tests_SOURCES += unittests/test_compact_vector.hpp
 

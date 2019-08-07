@@ -17,6 +17,36 @@ TEST(CompactVector, RequiredBits) {
   }
 } // CompactVector.RequiredBits
 
+TEST(CompactVector, CopyMove) {
+  const unsigned int       bits = 17;
+  const size_t             size = 2000;
+  compact::vector<int>     vector1(bits, size);
+  compact::vector<int, 17> vector2(size);
+
+  for(size_t i = 0; i < size; i++) {
+    vector1[i] = i;
+    vector2[i] = i;
+  }
+
+  auto cvector1(vector1);
+  auto cvector2(vector2);
+  EXPECT_EQ(vector1.size(), vector2.size());
+  for(size_t i = 0; i < size; i++) {
+    EXPECT_EQ(vector1[i], cvector1[i]);
+    EXPECT_EQ(vector2[i], cvector2[i]);
+  }
+
+  auto mvector1(std::move(vector1));
+  auto mvector2(std::move(vector2));
+  EXPECT_EQ(size, mvector1.size());
+  EXPECT_EQ(size, mvector2.size());
+  for(size_t i = 0; i < size; i++) {
+    EXPECT_EQ((int)i, mvector1[i]);
+    EXPECT_EQ((int)i, mvector2[i]);
+  }
+} // CompactVector.CopyMove
+
+
 //
 // Testing compact::vector_imp::vector for different vector type, word type, bits and used bits value.
 //
