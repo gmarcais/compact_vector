@@ -69,6 +69,22 @@ TEST_F(CompactVectorFixture, CopyMove) {
   }
 } // CompactVector.CopyMove
 
+TEST_F(CompactVectorFixture, At) {
+  for(size_t i = 0; i < size; ++i) {
+    EXPECT_EQ((int)i, vector1.at(i));
+    EXPECT_EQ((int)i, vector1c.at(i));
+    EXPECT_EQ((int)i, vector2.at(i));
+    EXPECT_EQ((int)i, vector2c.at(i));
+  }
+
+  for(size_t i = size; i < 2*size; ++i) {
+    EXPECT_THROW(vector1.at(i), std::out_of_range);
+    EXPECT_THROW(vector1c.at(i), std::out_of_range);
+    EXPECT_THROW(vector2.at(i), std::out_of_range);
+    EXPECT_THROW(vector2c.at(i), std::out_of_range);
+  }
+} // CompactVector.At
+
 
 //
 // Testing compact::vector_imp::vector for different vector type, word type, bits and used bits value.

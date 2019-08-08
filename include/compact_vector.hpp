@@ -58,6 +58,9 @@ protected:
     m_allocator.deallocate(mem, elements_to_words(capacity, bits()));
   }
 
+  // Error messages
+  static constexpr const char* EOUTOFRANGE = "Index is out of range";
+
 public:
 
   vector(vector &&rhs)
@@ -140,11 +143,19 @@ public:
       : *const_iterator(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
     // return cbegin()[i];
   }
+  IDX at(size_t i) const {
+    if(i >= size()) throw std::out_of_range(EOUTOFRANGE);
+    return this->operator[](i);
+  }
   typename iterator::lhs_setter_type operator[](size_t i) {
     return BITS
       ? typename iterator::lhs_setter_type(m_mem + (i * BITS) / UB, BITS, (i * BITS) % UB)
       : typename iterator::lhs_setter_type(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
     //  return begin()[i];
+  }
+  typename iterator::lhs_setter_type at(size_t i) {
+    if(i >= size()) throw std::out_of_range(EOUTOFRANGE);
+    return this->operator[](i);
   }
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
