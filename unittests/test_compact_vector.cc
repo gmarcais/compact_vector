@@ -116,6 +116,30 @@ TEST_F(CompactVectorFixture, Assign) {
   EXPECT_TRUE(std::equal(il.begin(), il.end(), vector1.cbegin()));
 } // CompactVectorFixture.Assign
 
+TEST_F(CompactVectorFixture, Resize) {
+  vector1.resize(size / 2);
+  EXPECT_EQ(size / 2, vector1.size());
+  for(size_t i = 0; i < vector1.size(); ++i)
+    EXPECT_EQ((int)i, vector1[i]);
+
+  vector1.resize(size);
+  EXPECT_EQ(size, vector1.size());
+  for(size_t i = 0; i < size / 2; ++i)
+    EXPECT_EQ((int)i, vector1[i]);
+  for(size_t i = size / 2; i < size; ++i)
+    EXPECT_EQ(0, vector1[i]);
+
+  vector1.resize(2*size, -1);
+  EXPECT_EQ(2*size, vector1.size());
+  for(size_t i = 0; i < size / 2; ++i)
+    EXPECT_EQ((int)i, vector1[i]);
+  for(size_t i = size / 2; i < size; ++i)
+    EXPECT_EQ(0, vector1[i]);
+  for(size_t i = size; i < 2*size; ++i)
+    EXPECT_EQ(-1, vector1[i]);
+} // CompactVectorFixture.Resize
+
+
 
 //
 // Testing compact::vector_imp::vector for different vector type, word type, bits and used bits value.

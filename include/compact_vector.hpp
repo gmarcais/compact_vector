@@ -169,9 +169,24 @@ public:
     for(size_t i = 0; i < n; ++i)
       push_back(val);
   }
-  void assign (std::initializer_list<IDX> il) {
+  inline void assign (std::initializer_list<IDX> il) {
     assign(il.begin(), il.end());
   }
+
+  void resize (size_t n, const IDX& val) {
+    if(n <= size()) {
+      m_size = n;
+      return;
+    }
+    if(n > m_capacity)
+      enlarge(n);
+
+    auto it = begin() + size();
+    for(size_t i = size(); i < n; ++i, ++it)
+      *it = val;
+    m_size = n;
+  }
+  inline void resize (size_t n) { resize(n, IDX()); }
 
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
@@ -202,8 +217,8 @@ public:
   static constexpr bool thread_safe() { return TS; }
 
 protected:
-  void enlarge() {
-    const size_t new_capacity = std::max(m_capacity * 2, (size_t)(bitsof<W>::val / bits() + 1));
+  void enlarge(size_t given = 0) {
+    const size_t new_capacity = !given ? std::max(m_capacity * 2, (size_t)(bitsof<W>::val / bits() + 1)) : given;
     W* new_mem = allocate(new_capacity);
     std::copy(m_mem, m_mem + elements_to_words(m_capacity, bits()), new_mem);
     deallocate(m_mem, m_capacity);
