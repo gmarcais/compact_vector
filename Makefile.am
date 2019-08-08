@@ -18,6 +18,6 @@ all_tests_CXXFLAGS = $(AM_CXXFLAGS) $(GTEST_CFLAGS) # -I$(top_srcdir)/unittests
 all_tests_LDFLAGS = -pthread
 all_tests_LDADD = $(GTEST_LIBS)
 all_tests_SOURCES = unittests/test_compact_vector.cc unittests/test_dyn.cc unittests/test_stat.cc
-all_tests_SOURCES += unittests/test_compact_vector.hpp
+all_tests_SOURCES += unittests/test_compact_vector.hpp unittests/allocator_fill_random.hpp
 
 bit_vector_speed_SOURCES = tests/bit_vector_speed.cc tests/misc.hpp

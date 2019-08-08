@@ -14,7 +14,6 @@ inline int clz(unsigned int x) { return __builtin_clz(x); }
 inline int clz(unsigned long x) { return __builtin_clzl(x); }
 inline int clz(unsigned long long x) { return __builtin_clzll(x); }
 
-// XXX TODO Missing copy and move constructors
 template<class Derived,
          typename IDX, unsigned BITS, typename W, typename Allocator, unsigned UB, bool TS>
 class vector {
@@ -42,6 +41,25 @@ public:
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
+protected:
+  static W* allocate_s(size_t capacity, unsigned bits, Allocator& allocator) {
+    const auto nb_words = elements_to_words(capacity, bits);
+    W* res = allocator.allocate(nb_words);
+    if(UB != bitsof<W>::val) // CAS vector, expect high bit of each word to be zero, so zero it all
+      std::fill_n(res, nb_words, (W)0);
+    return res;
+  }
+
+  W* allocate(size_t capacity) {
+    return allocate_s(capacity, bits(), m_allocator);
+  }
+
+  void deallocate(W* mem, size_t capacity) {
+    m_allocator.deallocate(mem, elements_to_words(capacity, bits()));
+  }
+
+public:
+
   vector(vector &&rhs)
     : m_allocator(std::move(rhs.m_allocator))
     , m_size(rhs.m_size)
@@ -55,16 +73,16 @@ public:
     : m_allocator(rhs.m_allocator)
     , m_size(rhs.m_size)
     , m_capacity(rhs.m_capacity)
+    , m_mem(allocate_s(m_capacity, rhs.bits(), m_allocator))
   {
-    m_mem = m_allocator.allocate(elements_to_words(rhs.m_capacity, rhs.bits()));
     std::memcpy(m_mem, rhs.m_mem, rhs.bytes());
   }
 
-  vector(size_t s, size_t mem, Allocator allocator = Allocator())
+  vector(unsigned b, size_t s, Allocator allocator = Allocator())
     : m_allocator(allocator)
     , m_size(s)
     , m_capacity(s)
-    , m_mem(m_allocator.allocate(mem))
+    , m_mem(allocate_s(s, b, m_allocator))
   {
     static_assert(UB <= bitsof<W>::val, "used_bits must be less or equal to the number of bits in the word_type");
     static_assert(BITS <= UB, "number of bits larger than usable bits");
@@ -78,9 +96,12 @@ public:
 
   vector& operator=(const vector& rhs) {
     m_allocator = rhs.m_allocator;
+    if(m_capacity < rhs.size()) {
+      deallocate(m_mem, m_capacity);
+      m_capacity = rhs.size();
+      m_mem = allocate(m_capacity);
+    }
     m_size      = rhs.m_size;
-    m_capacity  = rhs.m_capacity;
-    m_mem       = m_allocator.allocate(elements_to_words(m_capacity, bits()));
     std::memcpy(m_mem, rhs.m_mem, bytes());
     return *this;
   }
@@ -155,11 +176,10 @@ public:
 
 protected:
   void enlarge() {
-    const size_t new_capacity = std::max(m_capacity * 2, (size_t)1);
-    W* new_mem = m_allocator.allocate(new_capacity);
-    if(new_mem == nullptr) throw std::bad_alloc();
-    std::copy(m_mem, m_mem + m_capacity, new_mem);
-    m_allocator.deallocate(m_mem, m_capacity);
+    const size_t new_capacity = std::max(m_capacity * 2, (size_t)(bitsof<W>::val / bits() + 1));
+    W* new_mem = allocate(new_capacity);
+    std::copy(m_mem, m_mem + elements_to_words(m_capacity, bits()), new_mem);
+    deallocate(m_mem, m_capacity);
     m_mem      = new_mem;
     m_capacity = new_capacity;
   }
@@ -188,7 +208,7 @@ public:
   typedef W                                     word_type;
 
   vector_dyn(unsigned b, size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, b), allocator)
+    : super(b, s, allocator)
     , m_bits(b)
   { }
   vector_dyn(unsigned b, Allocator allocator = Allocator())
@@ -247,7 +267,7 @@ public:
   typedef W                                     word_type;
 
   vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   vector(Allocator allocator = Allocator())
     : super(allocator)
@@ -310,7 +330,7 @@ public:
   typedef W                                     word_type;
 
   ts_vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   ts_vector(Allocator allocator = Allocator())
     : super(allocator)
@@ -373,7 +393,7 @@ public:
   typedef W                                     word_type;
 
   cas_vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   cas_vector(Allocator allocator = Allocator())
     : super(allocator)

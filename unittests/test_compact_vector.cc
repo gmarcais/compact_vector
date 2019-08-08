@@ -1,5 +1,7 @@
 #include <unittests/test_compact_vector.hpp>
 
+#include "allocator_fill_random.hpp"
+
 namespace test_compact_vector {
 std::mt19937_64 prg = seeded_prg<std::mt19937_64>();
 };
@@ -17,17 +19,38 @@ TEST(CompactVector, RequiredBits) {
   }
 } // CompactVector.RequiredBits
 
-TEST(CompactVector, CopyMove) {
-  const unsigned int       bits = 17;
-  const size_t             size = 2000;
-  compact::vector<int>     vector1(bits, size);
-  compact::vector<int, 17> vector2(size);
+class CompactVectorFixture : public ::testing::Test {
+protected:
+  static constexpr unsigned int     bits = 17;
+  static constexpr size_t           size = 2000;
 
-  for(size_t i = 0; i < size; i++) {
-    vector1[i] = i;
-    vector2[i] = i;
+  typedef compact::vector<int, 0, uint64_t, allocator_fill_random<uint64_t>> vector_dyn;
+  typedef compact::vector<int, bits, uint64_t, allocator_fill_random<uint64_t>> vector_stat;
+  allocator_fill_random<uint64_t> allocator_fr;
+
+  vector_dyn         vector1;
+  vector_stat        vector2;
+  const vector_dyn&  vector1c;
+  const vector_stat& vector2c;
+
+  CompactVectorFixture()
+    : vector1(bits, size, allocator_fr)
+    , vector2(size, allocator_fr)
+    , vector1c(vector1)
+    , vector2c(vector2)
+  { std::cerr << "Setup\n"; }
+
+  void SetUp() override {
+    for(size_t i = 0; i < size; i++) {
+      vector1[i] = i;
+      vector2[i] = i;
+    }
   }
+};
+const unsigned int CompactVectorFixture::bits;
+const size_t       CompactVectorFixture::size;
 
+TEST_F(CompactVectorFixture, CopyMove) {
   auto cvector1(vector1);
   auto cvector2(vector2);
   EXPECT_EQ(vector1.size(), vector2.size());
@@ -159,5 +182,22 @@ TEST(CompactVector, CAS) {
   for(const auto s : successes_ci)
     EXPECT_EQ((size_t)0, s);
 } // CompactVector.CAS
+
+// TEST_F(CompactVectorFixture, At) {
+//   int x1, x2, x1c, x2c;
+//   for(size_t i = 0; i < size; ++i) {
+//     EXPECT_NO_THROW(x1  = vector1.at(i);
+//                     x2  = vector2.at(i);
+//                     x1c = vector1c.at(i);
+//                     x2c = vector2c.at(i);
+//                     );
+//     EXPECT_EQ(i, x1);
+//     EXPECT_EQ(i, x2);
+//   }
+//   for(size_t i = size; i < size + 10; ++i) {
+//     EXPECT_THROW(vector1.at(i), std::out_of_range);
+//   }
+// } // CompactVector.At
+
 
 } // empty namespace

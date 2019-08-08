@@ -44,7 +44,6 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
       *it = ary.back();
       vector2.push_back(ary.back());
       EXPECT_LE(vector2.size(), vector2.capacity());
-      EXPECT_LE(vector2.capacity(), 2*vector2.size());
       EXPECT_EQ(ary.size(), vector2.size());
       EXPECT_EQ(ary.back(), *it);
       EXPECT_EQ(ary.back(), vector1.cbegin()[i]);
@@ -103,6 +102,24 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
     }
   }
 }
+
+template<typename CV>
+void set_get_all(CV& vector1) {
+  typedef typename CV::value_type value_type;
+
+  const value_type max = 1 << vector1.bits();
+  const value_type low = std::is_signed<value_type>::value ? -(max/2) : 0;
+  const value_type high = std::is_signed<value_type>::value ? max/2 - 1 : max - 1;
+  for(size_t i = 0; i < vector1.size(); ++i) {
+    SCOPED_TRACE(::testing::Message() << "i:" << i);
+    for(value_type j = low; j <= high; ++j) {
+      vector1[i] = j;
+      ASSERT_EQ(j, vector1.begin()[i]);
+      ASSERT_EQ(j, vector1.cbegin()[i]);
+    }
+  }
+}
+
 } // namespace test_compact_vector
 
 #endif /* __TEST_COMPACT_VECTOR_H__ */

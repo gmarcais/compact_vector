@@ -63,12 +63,12 @@ struct gs {
     static constexpr size_t Wbits  = bitsof<W>::val;
     IDX res;
 
+    constexpr W mask = ~(W)0 >> (Wbits - BITS);
     if(UB == Wbits) {
-      constexpr W mask = ~(W)0 >> (Wbits - BITS);
       res = (*p >> o) & mask;
     } else {
-      const W mask = ~(W)0 >> (Wbits - BITS + (o > UB - BITS));
-      res = (*p >> o) & mask;
+      constexpr W hibit_mask = ~(W)0 >> (Wbits - UB);
+      res = ((*p & hibit_mask) >> o) & mask;
     }
 
     if(!divides(BITS, UB) && o + BITS > UB) {
@@ -76,7 +76,7 @@ struct gs {
       const uint64_t mask  = ~(W)0 >> (Wbits - over);
       res                 |= (*(p + 1) & mask) << (BITS - over);
     }
-    if(std::is_signed<IDX>::value && res & ((IDX)1 << (BITS - 1)))
+    if(std::is_signed<IDX>::value && (res & ((IDX)1 << (BITS - 1))))
       res |= ~static_cast<typename std::make_unsigned<IDX>::type>(0) << BITS;
 
     return res;

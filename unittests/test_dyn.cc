@@ -1,5 +1,8 @@
 #include <unittests/test_compact_vector.hpp>
 
+#include "allocator_fill_random.hpp"
+
+
 namespace test_compact_vector {
 // using test_compact_vector::prg;
 
@@ -74,24 +77,28 @@ TYPED_TEST_P(CompactVectorDynTest, DynSwap) {
 } // CompactIterator.Swap
 
 // Instantiate the typed tests for dynamic bits
+template<typename T, typename W> using vector_type = compact::vector<T, 0, W, allocator_fill_random<W> >;
+template<typename T, typename W> using ts_vector_type = compact::ts_vector<T, 0, W, allocator_fill_random<W> >;
+template<typename T, typename W> using cas_vector_type = compact::cas_vector<T, 0, W, allocator_fill_random<W> >;
+
 REGISTER_TYPED_TEST_CASE_P(CompactVectorDynTest, DynIterator, DynSwap);
-typedef ::testing::Types<TypeValueContainer<compact::vector<int>>,
-                         TypeValueContainer<compact::vector<unsigned>>,
+typedef ::testing::Types<TypeValueContainer<vector_type<int, uint64_t>>,
+                         TypeValueContainer<vector_type<unsigned, uint64_t>>,
 
                          // Same thing with uint32 word type
-                         TypeValueContainer<compact::vector<int, 0, uint32_t>>,
-                         TypeValueContainer<compact::vector<unsigned, 0, uint32_t>>,
+                         TypeValueContainer<vector_type<int, uint32_t>>,
+                         TypeValueContainer<vector_type<unsigned, uint32_t>>,
 
                          // Same tests with other vector types (with different thread safety)
-                         TypeValueContainer<compact::ts_vector<int>>,
-                         TypeValueContainer<compact::ts_vector<unsigned>>,
-                         TypeValueContainer<compact::ts_vector<int, 0, uint32_t>>,
-                         TypeValueContainer<compact::ts_vector<unsigned, 0, uint32_t>>,
+                         TypeValueContainer<ts_vector_type<int, uint64_t>>,
+                         TypeValueContainer<ts_vector_type<unsigned, uint64_t>>,
+                         TypeValueContainer<ts_vector_type<int, uint32_t>>,
+                         TypeValueContainer<ts_vector_type<unsigned, uint32_t>>,
 
-                         TypeValueContainer<compact::cas_vector<int>>,
-                         TypeValueContainer<compact::cas_vector<unsigned>>,
-                         TypeValueContainer<compact::cas_vector<int, 0, uint32_t>>,
-                         TypeValueContainer<compact::cas_vector<unsigned, 0, uint32_t>>
+                         TypeValueContainer<cas_vector_type<int, uint64_t>>,
+                         TypeValueContainer<cas_vector_type<unsigned, uint64_t>>,
+                         TypeValueContainer<cas_vector_type<int, uint32_t>>,
+                         TypeValueContainer<cas_vector_type<unsigned, uint32_t>>
                          > compact_vector_types;
 INSTANTIATE_TYPED_TEST_CASE_P(CompactVectorDyn, CompactVectorDynTest, compact_vector_types);
 } // namespace
