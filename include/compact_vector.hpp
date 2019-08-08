@@ -188,6 +188,12 @@ public:
   }
   inline void resize (size_t n) { resize(n, IDX()); }
 
+  inline iterator erase (const_iterator position) { return erase(position, position + 1); }
+  iterator erase (const_iterator first, const_iterator last) {
+    return begin();
+  }
+
+
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
   IDX back() const { return *(cbegin() + (m_size - 1)); }
@@ -206,6 +212,19 @@ public:
 
   void pop_back() { --m_size; }
   void clear() { m_size = 0; }
+  iterator emplace (const_iterator position, IDX x) {
+    const ssize_t osize = size();
+    const ssize_t distance = position - begin();
+    if(distance == osize) {
+      push_back(x);
+      return begin() + distance;
+    }
+    push_back(IDX());
+    auto res = begin() + distance;
+    std::copy_backward(res, begin() + osize, end());
+    *res = x;
+    return res;
+  }
   void emplace_back(IDX x) { push_back(x); }
 
   W* get() { return m_mem; }

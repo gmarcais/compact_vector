@@ -139,6 +139,33 @@ TEST_F(CompactVectorFixture, Resize) {
     EXPECT_EQ(-1, vector1[i]);
 } // CompactVectorFixture.Resize
 
+TEST_F(CompactVectorFixture, Emplace) {
+  static const size_t nb = 10;
+  for(size_t i = 0; i < nb; ++i) {
+    const auto it = vector1.emplace(vector1.begin() + 2*i, -(int)i);
+    EXPECT_EQ(2*(ssize_t)i, it - vector1.begin());
+    EXPECT_EQ(-(int)i, *it);
+    EXPECT_EQ(size + i + 1, vector1.size());
+    for(size_t j = 0; j <= i; ++j)
+      EXPECT_EQ(-(int)j, vector1[2*j]);
+  }
+
+
+  for(size_t i = 0; i < nb; ++i) {
+    const auto it = vector1.emplace(vector1.end() - 2 * i, -(int)i);
+    EXPECT_EQ(2*(ssize_t)i + 1, vector1.end() - it);
+    EXPECT_EQ(-(int)i, *it);
+    EXPECT_EQ(size + i + 1 + nb, vector1.size());
+    for(size_t j = 0; j <= i; ++j)
+      EXPECT_EQ(-(int)j, vector1[vector1.size() - 1 - 2*j]);
+  }
+} // CompactVectorFixture.Emplace
+
+TEST_F(CompactVectorFixture, Erase) {
+  // vector1.erase(vector1.begin());
+  // for(size_t i = 0; i < vector1.size(); ++i)
+  //   EXPECT_EQ((int)i + 1, vector1[i]);
+} // CompactVectorFixture.Erase
 
 
 //

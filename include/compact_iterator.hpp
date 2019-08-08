@@ -702,7 +702,7 @@ public:
   iterator(std::nullptr_t)
     : m_ptr(nullptr), m_bits(0), m_offset(0) { }
 
-  lhs_setter_type operator*() { return lhs_setter_type(m_ptr, m_bits, m_offset); }
+  lhs_setter_type operator*() const { return lhs_setter_type(m_ptr, m_bits, m_offset); }
   lhs_setter_type operator[](const difference_type n) const {
     return *(*this + n);
   }
