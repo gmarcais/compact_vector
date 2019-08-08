@@ -162,9 +162,20 @@ TEST_F(CompactVectorFixture, Emplace) {
 } // CompactVectorFixture.Emplace
 
 TEST_F(CompactVectorFixture, Erase) {
-  // vector1.erase(vector1.begin());
-  // for(size_t i = 0; i < vector1.size(); ++i)
-  //   EXPECT_EQ((int)i + 1, vector1[i]);
+  { const auto it = vector1.erase(vector1.begin());
+    EXPECT_EQ(it, vector1.begin());
+    for(size_t i = 0; i < vector1.size(); ++i)
+      EXPECT_EQ((int)i + 1, vector1[i]);
+  }
+
+  static const size_t start = 10, end = 20;
+  { const auto it = vector1.erase(vector1.cbegin() + start, vector1.cbegin() + end);
+    EXPECT_EQ(it, vector1.begin() + start);
+    for(size_t i = 0; i < (size_t)start; ++i)
+      EXPECT_EQ((int)i + 1, vector1[i]);
+    for(size_t i = start; i < vector1.size(); ++i)
+      EXPECT_EQ((int)i + 1 + end - start, vector1[i]);
+  }
 } // CompactVectorFixture.Erase
 
 
@@ -173,7 +184,7 @@ TEST_F(CompactVectorFixture, Erase) {
 //
 
 TEST(CompactIterator, Nullptr) {
-  compact::iterator<int> it = nullptr;
+  compact::iterator<int> it(nullptr);
 
   EXPECT_EQ(nullptr, it);
 } // CompactVector.Pointer

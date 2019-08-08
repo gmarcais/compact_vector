@@ -190,7 +190,13 @@ public:
 
   inline iterator erase (const_iterator position) { return erase(position, position + 1); }
   iterator erase (const_iterator first, const_iterator last) {
-    return begin();
+    const auto length = last - first;
+    iterator res(begin() + (first - cbegin()));
+    if(length) {
+      std::copy(last, cend(), res);
+      m_size -= length;
+    }
+    return res;
   }
 
 
