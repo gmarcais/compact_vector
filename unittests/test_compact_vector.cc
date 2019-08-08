@@ -38,7 +38,7 @@ protected:
     , vector2(size, allocator_fr)
     , vector1c(vector1)
     , vector2c(vector2)
-  { std::cerr << "Setup\n"; }
+  { }
 
   void SetUp() override {
     for(size_t i = 0; i < size; i++) {
@@ -84,6 +84,37 @@ TEST_F(CompactVectorFixture, At) {
     EXPECT_THROW(vector2c.at(i), std::out_of_range);
   }
 } // CompactVector.At
+
+TEST_F(CompactVectorFixture, Assign) {
+  std::vector<int> nv1(2*size);
+  std::vector<int> nv2(size /2);
+  const int mask = (1 << (bits - 1)) - 1;
+
+  for(size_t i = 0; i < nv1.size(); ++i)
+    nv1[i] = (3 * i + 1) & mask;
+  for(size_t i = 0; i < nv2.size(); ++i)
+    nv2[i] = (5 * i - 2) & mask;
+
+  vector1.assign(nv1.cbegin(), nv1.cend());
+  EXPECT_EQ(nv1.size(), vector1.size());
+  EXPECT_TRUE(std::equal(nv1.cbegin(), nv1.cend(), vector1.begin()));
+  EXPECT_TRUE(std::equal(nv1.cbegin(), nv1.cend(), vector1.cbegin()));
+
+  vector2.assign(nv2.cbegin(), nv2.cend());
+  EXPECT_EQ(nv2.size(), vector2.size());
+  EXPECT_TRUE(std::equal(nv2.cbegin(), nv2.cend(), vector2.cbegin()));
+
+  vector1.assign(3 * size, -2);
+  EXPECT_EQ(3 * size, vector1.size());
+  for(size_t i = 0; i < vector1.size(); ++i)
+    EXPECT_EQ(vector1[i], -2);
+
+  auto il = { -5, 2, 10, -7 };
+  vector1.assign(il);
+  EXPECT_EQ(vector1.size(), il.size());
+  EXPECT_TRUE(std::equal(il.begin(), il.end(), vector1.begin()));
+  EXPECT_TRUE(std::equal(il.begin(), il.end(), vector1.cbegin()));
+} // CompactVectorFixture.Assign
 
 
 //

@@ -157,6 +157,22 @@ public:
     if(i >= size()) throw std::out_of_range(EOUTOFRANGE);
     return this->operator[](i);
   }
+
+  template <class InputIterator>
+  void assign (InputIterator first, InputIterator last) {
+    clear();
+    for( ; first != last; ++first)
+      push_back(*first);
+  }
+  void assign (size_t n, const IDX& val) {
+    clear();
+    for(size_t i = 0; i < n; ++i)
+      push_back(val);
+  }
+  void assign (std::initializer_list<IDX> il) {
+    assign(il.begin(), il.end());
+  }
+
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
   IDX back() const { return *(cbegin() + (m_size - 1)); }
