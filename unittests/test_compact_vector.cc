@@ -70,12 +70,14 @@ TEST_F(CompactVectorFixture, CopyMove) {
 } // CompactVector.CopyMove
 
 TEST_F(CompactVectorFixture, At) {
-  for(size_t i = 0; i < size; ++i) {
-    EXPECT_EQ((int)i, vector1.at(i));
-    EXPECT_EQ((int)i, vector1c.at(i));
-    EXPECT_EQ((int)i, vector2.at(i));
-    EXPECT_EQ((int)i, vector2c.at(i));
-  }
+  EXPECT_NO_THROW(
+                  for(size_t i = 0; i < size; ++i) {
+                    EXPECT_EQ((int)i, vector1.at(i));
+                    EXPECT_EQ((int)i, vector1c.at(i));
+                    EXPECT_EQ((int)i, vector2.at(i));
+                    EXPECT_EQ((int)i, vector2c.at(i));
+                  }
+                  );
 
   for(size_t i = size; i < 2*size; ++i) {
     EXPECT_THROW(vector1.at(i), std::out_of_range);
@@ -291,22 +293,5 @@ TEST(CompactVector, CAS) {
   for(const auto s : successes_ci)
     EXPECT_EQ((size_t)0, s);
 } // CompactVector.CAS
-
-// TEST_F(CompactVectorFixture, At) {
-//   int x1, x2, x1c, x2c;
-//   for(size_t i = 0; i < size; ++i) {
-//     EXPECT_NO_THROW(x1  = vector1.at(i);
-//                     x2  = vector2.at(i);
-//                     x1c = vector1c.at(i);
-//                     x2c = vector2c.at(i);
-//                     );
-//     EXPECT_EQ(i, x1);
-//     EXPECT_EQ(i, x2);
-//   }
-//   for(size_t i = size; i < size + 10; ++i) {
-//     EXPECT_THROW(vector1.at(i), std::out_of_range);
-//   }
-// } // CompactVector.At
-
 
 } // empty namespace
