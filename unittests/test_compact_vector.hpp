@@ -32,7 +32,8 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
   EXPECT_EQ(vector1.bits(), vector2.bits());
   EXPECT_EQ(vector1.bits(), vector3.bits());
 
-  std::uniform_int_distribution<int> uni(0, (1 << (vector1.bits() - 1)) - 1);
+  const int high_value = std::is_signed<typename CV::value_type>::value ? (1 << (vector1.bits() - 1)) - 1 : (1 << vector1.bits()) - 1;
+  std::uniform_int_distribution<int> uni(0, high_value);
 
   std::vector<typename CV::value_type> ary;
   {
@@ -41,6 +42,7 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
     for(size_t i = 0; i < size; ++i, pit = it, ++it) {
       SCOPED_TRACE(::testing::Message() << "i:" << i);
       ary.push_back(uni(prg));
+      std::cerr << "bits() " << vector1.bits() << " i " << i << " val " << ary.back() << '\n';
       *it = ary.back();
       vector2.push_back(ary.back());
       EXPECT_LE(vector2.size(), vector2.capacity());
