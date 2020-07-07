@@ -3,6 +3,7 @@
 
 #include <new>
 #include <stdexcept>
+#include <cstring>
 
 #include "compact_iterator.hpp"
 
@@ -13,7 +14,6 @@ inline int clz(unsigned int x) { return __builtin_clz(x); }
 inline int clz(unsigned long x) { return __builtin_clzl(x); }
 inline int clz(unsigned long long x) { return __builtin_clzll(x); }
 
-// XXX TODO Missing copy and move constructors
 template<class Derived,
          typename IDX, unsigned BITS, typename W, typename Allocator, unsigned UB, bool TS>
 class vector {
@@ -31,7 +31,7 @@ public:
   }
 
   static size_t elements_to_words(size_t size, unsigned bits) {
-    size_t total_bits = size * bits;
+    const size_t total_bits = size * bits;
     return total_bits / UB + (total_bits % UB != 0);
   }
 
@@ -41,11 +41,51 @@ public:
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
 
-  vector(size_t s, size_t mem, Allocator allocator = Allocator())
+protected:
+  static W* allocate_s(size_t capacity, unsigned bits, Allocator& allocator) {
+    const auto nb_words = elements_to_words(capacity, bits);
+    W* res = allocator.allocate(nb_words);
+    if(UB != bitsof<W>::val) // CAS vector, expect high bit of each word to be zero, so zero it all
+      std::fill_n(res, nb_words, (W)0);
+    return res;
+  }
+
+  W* allocate(size_t capacity) {
+    return allocate_s(capacity, bits(), m_allocator);
+  }
+
+  void deallocate(W* mem, size_t capacity) {
+    m_allocator.deallocate(mem, elements_to_words(capacity, bits()));
+  }
+
+  // Error messages
+  static constexpr const char* EOUTOFRANGE = "Index is out of range";
+
+public:
+
+  vector(vector &&rhs)
+    : m_allocator(std::move(rhs.m_allocator))
+    , m_size(rhs.m_size)
+    , m_capacity(rhs.m_capacity)
+    , m_mem(rhs.m_mem)
+  {
+    rhs.m_size = rhs.m_capacity = 0;
+    rhs.m_mem = nullptr;
+  }
+  vector(const vector &rhs)
+    : m_allocator(rhs.m_allocator)
+    , m_size(rhs.m_size)
+    , m_capacity(rhs.m_capacity)
+    , m_mem(allocate_s(m_capacity, rhs.bits(), m_allocator))
+  {
+    std::memcpy(m_mem, rhs.m_mem, rhs.bytes());
+  }
+
+  vector(unsigned b, size_t s, Allocator allocator = Allocator())
     : m_allocator(allocator)
     , m_size(s)
     , m_capacity(s)
-    , m_mem(m_allocator.allocate(mem))
+    , m_mem(allocate_s(s, b, m_allocator))
   {
     static_assert(UB <= bitsof<W>::val, "used_bits must be less or equal to the number of bits in the word_type");
     static_assert(BITS <= UB, "number of bits larger than usable bits");
@@ -55,6 +95,29 @@ public:
   { }
   ~vector() {
     m_allocator.deallocate(m_mem, elements_to_words(m_capacity, bits()));
+  }
+
+  vector& operator=(const vector& rhs) {
+    m_allocator = rhs.m_allocator;
+    if(m_capacity < rhs.size()) {
+      deallocate(m_mem, m_capacity);
+      m_capacity = rhs.size();
+      m_mem = allocate(m_capacity);
+    }
+    m_size      = rhs.m_size;
+    std::memcpy(m_mem, rhs.m_mem, bytes());
+    return *this;
+  }
+
+  vector& operator=(vector&& rhs) {
+    m_allocator = std::move(rhs.m_allocator);
+    m_size      = rhs.m_size;
+    m_capacity  = rhs.m_capacity;
+    m_mem       = rhs.m_mem;
+
+    rhs.m_size = rhs.m_capacity = 0;
+    rhs.m_mem  = nullptr;
+    return *this;
   }
 
   const_iterator begin() const { return const_iterator(m_mem, bits(), 0); }
@@ -80,12 +143,63 @@ public:
       : *const_iterator(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
     // return cbegin()[i];
   }
+  IDX at(size_t i) const {
+    if(i >= size()) throw std::out_of_range(EOUTOFRANGE);
+    return this->operator[](i);
+  }
   typename iterator::lhs_setter_type operator[](size_t i) {
     return BITS
       ? typename iterator::lhs_setter_type(m_mem + (i * BITS) / UB, BITS, (i * BITS) % UB)
       : typename iterator::lhs_setter_type(m_mem + (i * bits()) / UB, bits(), (i * bits()) % UB);
     //  return begin()[i];
   }
+  typename iterator::lhs_setter_type at(size_t i) {
+    if(i >= size()) throw std::out_of_range(EOUTOFRANGE);
+    return this->operator[](i);
+  }
+
+  template <class InputIterator>
+  void assign (InputIterator first, InputIterator last) {
+    clear();
+    for( ; first != last; ++first)
+      push_back(*first);
+  }
+  void assign (size_t n, const IDX& val) {
+    clear();
+    for(size_t i = 0; i < n; ++i)
+      push_back(val);
+  }
+  inline void assign (std::initializer_list<IDX> il) {
+    assign(il.begin(), il.end());
+  }
+
+  void resize (size_t n, const IDX& val) {
+    if(n <= size()) {
+      m_size = n;
+      return;
+    }
+    if(n > m_capacity)
+      enlarge(n);
+
+    auto it = begin() + size();
+    for(size_t i = size(); i < n; ++i, ++it)
+      *it = val;
+    m_size = n;
+  }
+  inline void resize (size_t n) { resize(n, IDX()); }
+
+  inline iterator erase (const_iterator position) { return erase(position, position + 1); }
+  iterator erase (const_iterator first, const_iterator last) {
+    const auto length = last - first;
+    iterator res(begin() + (first - cbegin()));
+    if(length) {
+      std::copy(last, cend(), res);
+      m_size -= length;
+    }
+    return res;
+  }
+
+
   IDX front() const { return *cbegin(); }
   typename iterator::lhs_setter_type front() { return *begin(); }
   IDX back() const { return *(cbegin() + (m_size - 1)); }
@@ -104,6 +218,19 @@ public:
 
   void pop_back() { --m_size; }
   void clear() { m_size = 0; }
+  iterator emplace (const_iterator position, IDX x) {
+    const ssize_t osize = size();
+    const ssize_t distance = position - begin();
+    if(distance == osize) {
+      push_back(x);
+      return begin() + distance;
+    }
+    push_back(IDX());
+    auto res = begin() + distance;
+    std::copy_backward(res, begin() + osize, end());
+    *res = x;
+    return res;
+  }
   void emplace_back(IDX x) { push_back(x); }
 
   W* get() { return m_mem; }
@@ -115,12 +242,11 @@ public:
   static constexpr bool thread_safe() { return TS; }
 
 protected:
-  void enlarge() {
-    const size_t new_capacity = std::max(m_capacity * 2, (size_t)1);
-    W* new_mem = m_allocator.allocate(new_capacity);
-    if(new_mem == nullptr) throw std::bad_alloc();
-    std::copy(m_mem, m_mem + m_capacity, new_mem);
-    m_allocator.deallocate(m_mem, m_capacity);
+  void enlarge(size_t given = 0) {
+    const size_t new_capacity = !given ? std::max(m_capacity * 2, (size_t)(bitsof<W>::val / bits() + 1)) : given;
+    W* new_mem = allocate(new_capacity);
+    std::copy(m_mem, m_mem + elements_to_words(m_capacity, bits()), new_mem);
+    deallocate(m_mem, m_capacity);
     m_mem      = new_mem;
     m_capacity = new_capacity;
   }
@@ -149,7 +275,7 @@ public:
   typedef W                                     word_type;
 
   vector_dyn(unsigned b, size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, b), allocator)
+    : super(b, s, allocator)
     , m_bits(b)
   { }
   vector_dyn(unsigned b, Allocator allocator = Allocator())
@@ -157,7 +283,31 @@ public:
     , m_bits(b)
   { }
 
+  vector_dyn(vector_dyn&& rhs)
+    : super(std::move(rhs))
+    , m_bits(rhs.bits())
+  { }
+
+  vector_dyn(const vector_dyn& rhs)
+    : super(rhs)
+    , m_bits(rhs.bits())
+  { }
+
   inline unsigned bits() const { return m_bits; }
+
+  vector_dyn& operator=(const vector_dyn& rhs) {
+    if(bits() != rhs.bits())
+      throw std::invalid_argument("Bit length of compacted vector differ");
+    static_cast<super*>(this)->operator=(rhs);
+    return *this;
+  }
+
+  vector_dyn& operator=(vector_dyn&& rhs) {
+    if(bits() != rhs.bits())
+      throw std::invalid_argument("Bit length of compacted vector differ");
+    static_cast<super*>(this)->operator=(std::move(rhs));
+    return *this;
+  }
 };
 
 } // namespace vector_imp
@@ -184,7 +334,7 @@ public:
   typedef W                                     word_type;
 
   vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   vector(Allocator allocator = Allocator())
     : super(allocator)
@@ -247,7 +397,7 @@ public:
   typedef W                                     word_type;
 
   ts_vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   ts_vector(Allocator allocator = Allocator())
     : super(allocator)
@@ -310,7 +460,7 @@ public:
   typedef W                                     word_type;
 
   cas_vector(size_t s, Allocator allocator = Allocator())
-    : super(s, super::elements_to_words(s, BITS), allocator)
+    : super(BITS, s, allocator)
   { }
   cas_vector(Allocator allocator = Allocator())
     : super(allocator)
