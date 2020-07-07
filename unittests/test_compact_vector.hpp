@@ -42,7 +42,6 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
     for(size_t i = 0; i < size; ++i, pit = it, ++it) {
       SCOPED_TRACE(::testing::Message() << "i:" << i);
       ary.push_back(uni(prg));
-      std::cerr << "bits() " << vector1.bits() << " i " << i << " val " << ary.back() << '\n';
       *it = ary.back();
       vector2.push_back(ary.back());
       EXPECT_LE(vector2.size(), vector2.capacity());

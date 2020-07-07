@@ -155,30 +155,22 @@ struct gs {
   // succeeded). Otherwise, it returns false.
   static bool try_fetch(IDX& res, W* p, unsigned o) {
     static_assert(UB < bitsof<W>::val, "The fetch operation is valid for cas_vector (used bits less than bits in word");
-    if(divides(BITS, UB) || o + BITS <= UB) {
-      res = get(p, BITS, o);
-      return true;
+    static constexpr size_t Wbits     = bitsof<W>::val;
+    static constexpr W      msb       = (W)1 << (Wbits - 1);
+    const bool              need_lock = !(divides(BITS, UB) || o + BITS <= UB);
+
+    if(need_lock) {
+      if(!mask_store<W, true>::cas(p, msb, msb, 0))
+        return false;
     }
 
-    // o + BITS > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
-    // 0. If failure, then return failure. If success, read entire value
-    // then set MSB back to 0.
-    static constexpr size_t Wbits  = bitsof<W>::val;
-    //    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-    static constexpr W      msb    = (W)1 << (Wbits - 1);
-    const W                 mask   = (~(W)0 >> (Wbits - BITS)) << o;
-    W                       x      = (*p & mask);
-    if(x & msb) return false; // MSB already set to 1
-    if(!mask_store<W, true>::cas(p, mask, msb | x, x))
-      return false;
-    const unsigned over  = o + BITS - UB;
-    const W        nmask = ~(W)0 >> (Wbits - over);
-    res                  = x | ((*(p + 1) & nmask) << (BITS - over));
-    if(std::is_signed<IDX>::value && res & ((IDX)1 << (BITS - 1)))
-      res |= ~(IDX)0 << BITS;
-    mask_store<W, true>::store(p, msb, 0);
+    res = get(p, BITS, o);
+
+    if(need_lock)
+      mask_store<W, true>::store(p, msb, 0);
     return true;
   }
+
   static inline IDX fetch(W* p, unsigned o) {
     IDX res;
     while(!try_fetch(res, p, o)) { }
@@ -186,28 +178,29 @@ struct gs {
   }
   static inline IDX fetch(W* p, unsigned b, unsigned o) { return fetch(p, o); }
 
-  // // Push value y at position p, offset o and number of bits b. This
-  // // can be used when multiple threads may update the same position
-  // // (p,o,b) with cas operations. See fetch for details
-  // static bool try_push(IDX y, W* p, unsigned o) {
-  //   static_assert(UB < bitsof<W>::val, "The push operation is valid for cas_vector (used bits less than bits in word");
-  //   if(divides(BITS, UB) || o + BITS <= UB) {
-  //     set<true>(x, p, o);
-  //     return true;
-  //   }
+  // Push value y at position p, offset o and number of bits b. This
+  // can be used when multiple threads may update the same position
+  // (p,o,b) with cas operations. See fetch for details
+  static bool try_push(IDX y, W* p, unsigned o) {
+    static_assert(UB < bitsof<W>::val, "The push operation is valid for cas_vector (used bits less than bits in word");
+    static constexpr size_t Wbits     = bitsof<W>::val;
+    static constexpr W      msb       = (W)1 << (Wbits - 1);
+    const bool              need_lock = !(divides(BITS, UB) || o + BITS <= UB);
 
-  //   // o + BITS > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
-  //   // 0. If failure, then return failure. If success, read entire value
-  //   // then set MSB back to 0.
-  //   static constexpr size_t Wbits  = bitsof<W>::val;
-  //   static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-  //   static constexpr W      msb    = (W)1 << (Wbits - 1);
-  //   const W                 mask   = (~(W)0 >> (Wbits - BITS)) << o;
-  //   W                       x      = (*p & mask);
-  //   if(x & msb) return false; // MSB already set to 1
-  //   if(!mask_store<W, true>::cas(p, mask, msb | x, x)) return false;
-    
-  // }
+    if(need_lock) {
+      if(!mask_store<W, true>::cas(p, msb, msb, 0))
+        return false;
+    }
+
+    set<true>(y, p, o);
+
+    if(need_lock)
+      mask_store<W, true>::store(p, msb, 0);
+    return true;
+  }
+  static inline void push(IDX y, W* p, unsigned o) {
+    while(!try_push(y, p, o)) { }
+  }
 };
 
 // gs implementation for number of bits known at runtime (BITS == 0).
@@ -288,28 +281,20 @@ struct gs<IDX, 0, W, UB> {
   // succeeded). Otherwise, it returns false.
   static bool try_fetch(IDX& res, W* p, unsigned b, unsigned o) {
     static_assert(UB < bitsof<W>::val, "The fetch operation is valid for cas_vector (used bits less than bits in word");
-    if(o + b <= UB) {
-      res = get(p, b, o);
-      return true;
+
+    static constexpr size_t Wbits     = bitsof<W>::val;
+    static constexpr W      msb       = (W)1 << (Wbits - 1);
+    const bool              need_lock = !(divides(b, UB) || o + b <= UB);
+
+    if(need_lock) {
+      if(!mask_store<W, true>::cas(p, msb, msb, 0))
+        return false;
     }
 
-    // o + b > UB. Needs to do a CAS with MSB set to 1, expecting MSB at
-    // 0. If failure, then return failure. If success, read entire value
-    // then set MSB back to 0.
-    static constexpr size_t Wbits  = bitsof<W>::val;
-    //    static constexpr W      ubmask = ~(W)0 >> (Wbits - UB);
-    static constexpr W      msb    = (W)1 << (Wbits - 1);
-    const W                 mask   = (~(W)0 >> (Wbits - b)) << o;
-    W                       x      = (*p & mask);
-    if(x & msb) return false; // MSB already set to 1
-    if(!mask_store<W, true>::cas(p, mask, msb | x, x))
-      return false;
-    const unsigned over  = o + b - UB;
-    const W nmask            = ~(W)0 >> (Wbits - over);
-    res                      = x | ((*(p + 1) & nmask) << (b - over));
-    if(std::is_signed<IDX>::value && res & ((IDX)1 << (b - 1)))
-      res |= ~(IDX)0 << b;
-    mask_store<W, true>::cas(p, mask, (W)x, (W)x | msb);
+    res = get(p, b, o);
+
+    if(need_lock)
+      mask_store<W, true>::store(p, msb, 0);
     return true;
   }
 
@@ -318,9 +303,35 @@ struct gs<IDX, 0, W, UB> {
     while (!try_fetch(res, p, b, o)) { }
     return res;
   }
+
+  // Push value y at position p, offset o and number of bits b. This
+  // can be used when multiple threads may update the same position
+  // (p,o,b) with cas operations. See fetch for details
+  static bool try_push(IDX y, W* p, unsigned b, unsigned o) {
+    static_assert(UB < bitsof<W>::val, "The push operation is valid for cas_vector (used bits less than bits in word");
+    static constexpr size_t Wbits     = bitsof<W>::val;
+    static constexpr W      msb       = (W)1 << (Wbits - 1);
+    const bool              need_lock = !(divides(b, UB) || o + b <= UB);
+
+    if(need_lock) {
+      if(!mask_store<W, true>::cas(p, msb, msb, 0))
+        return false;
+    }
+
+    set<true>(y, p, b, o);
+
+    if(need_lock)
+      mask_store<W, true>::store(p, msb, 0);
+    return true;
+  }
+  static inline void push(IDX y, W* p, unsigned b, unsigned o) {
+    while(!try_push(y, p, b, o)) { }
+  }
 };
 
-// Helper struct to help choose between get/fetch and set/push
+// Helper struct to help choose between get/fetch and set/push. Use
+// fetch and push when the number of used bits is less than the number
+// of bits in the word. (e.g., cas_vector iterator).
 struct gf_sp_helper {
   template<typename IDX, unsigned BITS, typename W, unsigned UB, typename... Args>
   static inline
@@ -331,9 +342,23 @@ struct gf_sp_helper {
 
   template<typename IDX, unsigned BITS, typename W, unsigned UB, typename... Args>
   static inline
-  typename std::enable_if<UB < bitsof<W>::val, IDX>::type
+  typename std::enable_if<UB != bitsof<W>::val, IDX>::type
   getfetch(const W* p, Args&&... args) {
     return gs<IDX, BITS, W, UB>::fetch(const_cast<W*>(p), std::forward<Args>(args)...);
+  }
+
+  template<typename IDX, unsigned BITS, typename W, unsigned UB, typename... Args>
+  static inline
+  typename std::enable_if<UB == bitsof<W>::val, void>::type
+  setpush(IDX y, W* p, Args&&... args) {
+    gs<IDX, BITS, W, UB>::template set<true>(y, p, std::forward<Args>(args)...);
+  }
+
+  template<typename IDX, unsigned BITS, typename W, unsigned UB, typename... Args>
+  static inline
+  typename std::enable_if<UB != bitsof<W>::val, void>::type
+  setpush(IDX y, W* p, Args&&... args) {
+    gs<IDX, BITS, W, UB>::push(y, p, std::forward<Args>(args)...);
   }
 };
 
@@ -414,8 +439,7 @@ public:
 
   IDX operator*() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return gs<IDX, BITS, W, UB>::get(self.m_ptr, self.bits(), self.m_offset);
-    // return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(self.m_ptr, BITS, self.m_offset);
+    return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(self.m_ptr, self.bits(), self.m_offset);
   }
 
   bool operator==(const Derived& rhs) const {
@@ -667,7 +691,7 @@ public:
   lhs_setter_common(W* p, unsigned o) : ptr(p), offset(o) { }
   operator IDX() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return gs<IDX, BITS, W, UB>::get(ptr, self.bits(), offset);
+    return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(ptr, self.bits(), offset);
   }
 
   iterator operator&() {
@@ -693,10 +717,7 @@ class lhs_setter<IDX, 0, W, TS, UB>
 public:
   lhs_setter(W* p, int b, int o) : super(p, o), m_bits(b) { }
   lhs_setter& operator=(const IDX x) {
-    // if(UB < bitsof<W>::val)
-    //   gs<IDX, 0, W, UB>::push(x, super::ptr, m_bits, super::offset);
-    // else
-    gs<IDX, 0, W, UB>::template set<TS>(x, super::ptr, m_bits, super::offset);
+    gf_sp_helper::template setpush<IDX, 0, W, UB>(x, super::ptr, m_bits, super::offset);
     return *this;
   }
   lhs_setter& operator=(const lhs_setter& rhs) {
@@ -717,10 +738,7 @@ public:
   lhs_setter(W* p, int o) : super(p, o) { }
   lhs_setter(W* p, unsigned bits, int o) : super(p, o) { }
   lhs_setter& operator=(const IDX x) {
-    // if(UB < bitsof<W>::val)
-    //   while(!gs<IDX, BITS, W, UB>::push(x, super::ptr, super::offset)) { }
-    // else
-    gs<IDX, BITS, W, UB>::template set<TS>(x, super::ptr, super::offset);
+    gf_sp_helper::template setpush<IDX, BITS, W, UB>(x, super::ptr, super::offset);
     return *this;
   }
   lhs_setter& operator=(const lhs_setter& rhs) {
