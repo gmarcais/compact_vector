@@ -569,11 +569,11 @@ public:
 
   const W* get_ptr() const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return self.ptr;
+    return self.m_ptr;
   }
   unsigned get_offset() const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return self.offset;
+    return self.m_offset;
   }
   unsigned get_bits() const {
     const Derived& self  = *static_cast<const Derived*>(this);
@@ -595,6 +595,12 @@ public:
   void set_bits(W x, unsigned bits) {
     Derived& self  = *static_cast<Derived*>(this);
     gs<W, BITS, W, UB>::set<TS>(x, self.ptr, bits, self.offset);
+  }
+
+  // Get, i.e., don't use fetch
+  IDX get() const {
+    const Derived& self  = *static_cast<const Derived*>(this);
+    return gs<W, BITS, W, UB>::get(self.m_ptr, self.bits(), self.m_offset);
   }
 };
 
@@ -702,6 +708,12 @@ public:
     Derived& self = *static_cast<Derived*>(this);
     return gs<IDX, BITS, W, UB>::cas(x, exp, ptr, self.bits(), offset);
   }
+
+  // Get, i.e., don't use fetch. Less thread safety for cas_vector
+  inline IDX get() const {
+    const Derived& self = *static_cast<const Derived*>(this);
+    return gs<IDX, BITS, W, UB>::get(ptr, self.bits(), offset);
+  }
 };
 
 template<typename IDX, unsigned BITS, typename W, bool TS, unsigned UB>
@@ -725,6 +737,17 @@ public:
     return *this;
   }
 
+  // Use set, i.e., not push
+  lhs_setter& set(const IDX x) {
+    gs<IDX, 0, W, UB>::template set<false>(x, super::ptr, bits(), super::offset);
+    return *this;
+  }
+  // Use set, i.e., not push, but at least thread safe version
+  lhs_setter& ts_set(const IDX x) {
+    gs<IDX, 0, W, UB>::template set<true>(x, super::ptr, bits(), super::offset);
+    return *this;
+  }
+
   unsigned bits() const { return m_bits; }
 };
 
@@ -743,6 +766,17 @@ public:
   }
   lhs_setter& operator=(const lhs_setter& rhs) {
     this->operator=((IDX)rhs);
+    return *this;
+  }
+
+  // Use set, i.e., not push
+  lhs_setter& set(const IDX x) {
+    gs<IDX, 0, W, UB>::template set<false>(x, super::ptr, bits(), super::offset);
+    return *this;
+  }
+  // Use set, i.e., not push, but at least thread safe version
+  lhs_setter& ts_set(const IDX x) {
+    gs<IDX, 0, W, UB>::template set<true>(x, super::ptr, bits(), super::offset);
     return *this;
   }
 

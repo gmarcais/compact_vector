@@ -48,8 +48,10 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
       EXPECT_EQ(ary.size(), vector2.size());
       EXPECT_EQ(ary.back(), *it);
       EXPECT_EQ(ary.back(), vector1.cbegin()[i]);
+      EXPECT_EQ(ary.back(), (vector1.cbegin() + i).get());
       EXPECT_EQ(ary.back(), vector2.back());
       EXPECT_EQ(ary.back(), vector2.cbegin()[i]);
+      EXPECT_EQ(ary.back(), (vector2.cbegin() + i).get());
       EXPECT_EQ(ary.front(), vector1.front());
       EXPECT_EQ(ary.front(), vector2.front());
       EXPECT_EQ(it, &vector1.begin()[i]);

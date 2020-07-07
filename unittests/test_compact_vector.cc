@@ -226,11 +226,6 @@ void cas_values(int val, Iterator ary, size_t size, size_t* nb_success) {
   for(size_t i = 0; i < size; ++i, ++ary) {
     unsigned int expected = 0;
     *nb_success += compact::parallel_iterator_traits<Iterator>::cas(ary, expected, val);
-    // if(*ary != val) {
-    //   std::cerr << i << ' ' << *ary << ' ' << val << std::endl;
-    //   asm("int3");
-    // }
-      //    assert(*ary == val);
     if(i % 128 == 0)
       std::this_thread::sleep_for(std::chrono::microseconds(dist(gen)));
   }
