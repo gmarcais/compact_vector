@@ -31,7 +31,7 @@ template<typename T>
 constexpr int CompactVectorDynTest<T>::bits[8];
 // template<typename T>
 // const size_t CompactVectorDynTest<T>::size;
-TYPED_TEST_CASE_P(CompactVectorDynTest);
+TYPED_TEST_SUITE_P(CompactVectorDynTest);
 
 TYPED_TEST_P(CompactVectorDynTest, DynIterator) {
   for(size_t i = 0; i < sizeof(this->bits) / sizeof(int); ++i) {
@@ -81,7 +81,7 @@ template<typename T, typename W> using vector_type = compact::vector<T, 0, W, al
 template<typename T, typename W> using ts_vector_type = compact::ts_vector<T, 0, W, allocator_fill_random<W> >;
 template<typename T, typename W> using cas_vector_type = compact::cas_vector<T, 0, W, allocator_fill_random<W> >;
 
-REGISTER_TYPED_TEST_CASE_P(CompactVectorDynTest, DynIterator, DynSwap);
+REGISTER_TYPED_TEST_SUITE_P(CompactVectorDynTest, DynIterator, DynSwap);
 typedef ::testing::Types<TypeValueContainer<vector_type<int, uint64_t>>,
                          TypeValueContainer<vector_type<unsigned, uint64_t>>,
 
@@ -100,5 +100,5 @@ typedef ::testing::Types<TypeValueContainer<vector_type<int, uint64_t>>,
                          TypeValueContainer<cas_vector_type<int, uint32_t>>,
                          TypeValueContainer<cas_vector_type<unsigned, uint32_t>>
                          > compact_vector_types;
-INSTANTIATE_TYPED_TEST_CASE_P(CompactVectorDyn, CompactVectorDynTest, compact_vector_types);
+INSTANTIATE_TYPED_TEST_SUITE_P(CompactVectorDyn, CompactVectorDynTest, compact_vector_types);
 } // namespace

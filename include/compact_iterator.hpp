@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <cstddef>
 #include <climits>
+#include <ostream>
 
 #include "const_iterator_traits.hpp"
 #include "parallel_iterator_traits.hpp"

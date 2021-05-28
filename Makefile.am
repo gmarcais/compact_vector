@@ -14,8 +14,10 @@ pkgconfig_DATA = compact_vector.pc
 TESTS = all_tests
 check_PROGRAMS = all_tests bit_vector_speed
 
-all_tests_CXXFLAGS = $(AM_CXXFLAGS) $(GTEST_CFLAGS) # -I$(top_srcdir)/unittests
-all_tests_LDFLAGS = -pthread
+# GTEST_CFLAGS unfortunately contains -lpthread (from pkg-config) and clang
+# complains about it. Remove this specific complaint.
+all_tests_CXXFLAGS = $(AM_CXXFLAGS) $(GTEST_CFLAGS) -Wno-unused-command-line-argument # -I$(top_srcdir)/unittests
+all_tests_LDFLAGS = -pthread -Wno-unused-command-line-argument
 all_tests_LDADD = $(GTEST_LIBS)
 all_tests_SOURCES = unittests/test_compact_vector.cc unittests/test_dyn.cc unittests/test_stat.cc
 all_tests_SOURCES += unittests/test_compact_vector.hpp unittests/allocator_fill_random.hpp

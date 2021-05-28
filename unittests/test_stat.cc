@@ -11,7 +11,7 @@ class CompactVectorStatTest : public ::testing::Test {
 protected:
   static constexpr size_t size = 1000;
 };
-TYPED_TEST_CASE_P(CompactVectorStatTest);
+TYPED_TEST_SUITE_P(CompactVectorStatTest);
 TYPED_TEST_P(CompactVectorStatTest, StatIterator) {
   typedef typename TypeParam::compact_vector_type compact_vector_type;
   SCOPED_TRACE(::testing::Message() << "Static bits:" << compact_vector_type::static_bits());
@@ -30,7 +30,7 @@ template<typename T, int B> using vector_type = compact::vector<T, B, uint64_t, 
 template<typename T, int B> using ts_vector_type = compact::ts_vector<T, B, uint64_t, allocator_fill_random<uint64_t>>;
 template<typename T, int B> using cas_vector_type = compact::cas_vector<T, B, uint64_t, allocator_fill_random<uint64_t>>;
 
-REGISTER_TYPED_TEST_CASE_P(CompactVectorStatTest, StatIterator);
+REGISTER_TYPED_TEST_SUITE_P(CompactVectorStatTest, StatIterator);
 typedef ::testing::Types<TypeValueContainer<vector_type<int, 1>>,
                          TypeValueContainer<vector_type<int, 2>>,
                          TypeValueContainer<vector_type<int, 3>>,
@@ -62,5 +62,5 @@ typedef ::testing::Types<TypeValueContainer<vector_type<int, 1>>,
                          TypeValueContainer<cas_vector_type<unsigned, 4>>,
                          TypeValueContainer<cas_vector_type<unsigned, 5>>
                          > compact_vector_stat_types;
-INSTANTIATE_TYPED_TEST_CASE_P(CompactVectorStat, CompactVectorStatTest, compact_vector_stat_types);
+INSTANTIATE_TYPED_TEST_SUITE_P(CompactVectorStat, CompactVectorStatTest, compact_vector_stat_types);
 } // namespace

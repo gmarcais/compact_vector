@@ -4,6 +4,7 @@
 #include <new>
 #include <stdexcept>
 #include <cstring>
+#include <algorithm>
 
 #include "compact_iterator.hpp"
 
