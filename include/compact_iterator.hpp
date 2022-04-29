@@ -409,7 +409,7 @@ class common {
 public:
   std::ostream& print(std::ostream& os) const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return os << '<' << (void*)self.ptr << '+' << self.offset << ',' << self.bits << '>';
+    return os << '<' << (void*)self.m_ptr << '+' << self.m_offset << ',' << self.bits() << '>';
   }
 
 protected:
@@ -426,16 +426,16 @@ public:
 
   Derived& operator=(const Derived& rhs) {
     Derived& self = *static_cast<Derived*>(this);
-    self.ptr      = rhs.ptr;
-    self.offset   = rhs.offset;
-    self.bits(rhs.bits());
+    self.m_ptr    = rhs.m_ptr;
+    self.m_offset = rhs.m_offset;
+    self.m_bits(rhs.bits());
     return self;
   }
 
   Derived& operator=(std::nullptr_t p) {
     Derived& self = *static_cast<Derived*>(this);
-    self.ptr      = nullptr;
-    self.offset   = 0;
+    self.m_ptr    = nullptr;
+    self.m_offset = 0;
   }
 
   IDX operator*() const {
@@ -584,18 +584,18 @@ public:
   // Get some number of bits
   W get_bits(unsigned bits) const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return gs<W, BITS, W, UB>::get(self.ptr, bits, self.offset);
+    return gs<W, BITS, W, UB>::get(self.m_ptr, bits, self.m_offset);
   }
 
   W get_bits(unsigned bits, unsigned offset) const {
     const Derived& self  = *static_cast<const Derived*>(this);
-    return gs<W, BITS, W, UB>::get(self.ptr, bits, offset);
+    return gs<W, BITS, W, UB>::get(self.m_ptr, bits, offset);
   }
 
   template<bool TS = false>
   void set_bits(W x, unsigned bits) {
     Derived& self  = *static_cast<Derived*>(this);
-    gs<W, BITS, W, UB>::set<TS>(x, self.ptr, bits, self.offset);
+    gs<W, BITS, W, UB>::set<TS>(x, self.m_ptr, bits, self.m_offset);
   }
 
   // Get, i.e., don't use fetch
@@ -690,30 +690,30 @@ template<class Derived,
          typename IDX, unsigned BITS, typename W, bool TS = false, unsigned UB = bitsof<W>::val>
 class lhs_setter_common {
 protected:
-  W*       ptr;
-  unsigned offset;
+  W*       m_ptr;
+  unsigned m_offset;
 
 public:
   typedef compact::iterator<IDX, BITS, W, TS, UB> iterator;
-  lhs_setter_common(W* p, unsigned o) : ptr(p), offset(o) { }
+  lhs_setter_common(W* p, unsigned o) : m_ptr(p), m_offset(o) { }
   operator IDX() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(ptr, self.bits(), offset);
+    return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(m_ptr, self.bits(), m_offset);
   }
 
   iterator operator&() {
     Derived& self = *static_cast<Derived*>(this);
-    return iterator(ptr, self.bits(), offset);
+    return iterator(m_ptr, self.bits(), m_offset);
   }
   inline bool cas(const IDX x, const IDX exp) {
     Derived& self = *static_cast<Derived*>(this);
-    return gs<IDX, BITS, W, UB>::cas(x, exp, ptr, self.bits(), offset);
+    return gs<IDX, BITS, W, UB>::cas(x, exp, m_ptr, self.bits(), m_offset);
   }
 
   // Get, i.e., don't use fetch. Less thread safety for cas_vector
   inline IDX get() const {
     const Derived& self = *static_cast<const Derived*>(this);
-    return gs<IDX, BITS, W, UB>::get(ptr, self.bits(), offset);
+    return gs<IDX, BITS, W, UB>::get(m_ptr, self.bits(), m_offset);
   }
 };
 
@@ -730,7 +730,7 @@ class lhs_setter<IDX, 0, W, TS, UB>
 public:
   lhs_setter(W* p, int b, int o) : super(p, o), m_bits(b) { }
   lhs_setter& operator=(const IDX x) {
-    gf_sp_helper::template setpush<IDX, 0, W, UB>(x, super::ptr, m_bits, super::offset);
+    gf_sp_helper::template setpush<IDX, 0, W, UB>(x, super::m_ptr, m_bits, super::m_offset);
     return *this;
   }
   lhs_setter& operator=(const lhs_setter& rhs) {
@@ -740,12 +740,12 @@ public:
 
   // Use set, i.e., not push
   lhs_setter& set(const IDX x) {
-    gs<IDX, 0, W, UB>::template set<false>(x, super::ptr, bits(), super::offset);
+    gs<IDX, 0, W, UB>::template set<false>(x, super::m_ptr, bits(), super::m_offset);
     return *this;
   }
   // Use set, i.e., not push, but at least thread safe version
   lhs_setter& ts_set(const IDX x) {
-    gs<IDX, 0, W, UB>::template set<true>(x, super::ptr, bits(), super::offset);
+    gs<IDX, 0, W, UB>::template set<true>(x, super::m_ptr, bits(), super::m_offset);
     return *this;
   }
 
@@ -762,7 +762,7 @@ public:
   lhs_setter(W* p, int o) : super(p, o) { }
   lhs_setter(W* p, unsigned bits, int o) : super(p, o) { }
   lhs_setter& operator=(const IDX x) {
-    gf_sp_helper::template setpush<IDX, BITS, W, UB>(x, super::ptr, super::offset);
+    gf_sp_helper::template setpush<IDX, BITS, W, UB>(x, super::m_ptr, super::m_offset);
     return *this;
   }
   lhs_setter& operator=(const lhs_setter& rhs) {
@@ -772,12 +772,12 @@ public:
 
   // Use set, i.e., not push
   lhs_setter& set(const IDX x) {
-    gs<IDX, 0, W, UB>::template set<false>(x, super::ptr, bits(), super::offset);
+    gs<IDX, 0, W, UB>::template set<false>(x, super::m_ptr, bits(), super::m_offset);
     return *this;
   }
   // Use set, i.e., not push, but at least thread safe version
   lhs_setter& ts_set(const IDX x) {
-    gs<IDX, 0, W, UB>::template set<true>(x, super::ptr, bits(), super::offset);
+    gs<IDX, 0, W, UB>::template set<true>(x, super::m_ptr, bits(), super::m_offset);
     return *this;
   }
 
