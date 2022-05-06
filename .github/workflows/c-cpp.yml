@@ -21,6 +21,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: configure ${{ matrix.standard }}
-      run: ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
+      run: autoreconf -fi && ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
     - name: check ${{ matrix.standard }}
       run: make check
