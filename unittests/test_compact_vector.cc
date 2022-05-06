@@ -26,6 +26,7 @@ protected:
 
   typedef compact::vector<int, 0, uint64_t, allocator_fill_random<uint64_t>> vector_dyn;
   typedef compact::vector<int, bits, uint64_t, allocator_fill_random<uint64_t>> vector_stat;
+
   allocator_fill_random<uint64_t> allocator_fr;
 
   vector_dyn         vector1;
@@ -53,7 +54,8 @@ const size_t       CompactVectorFixture::size;
 TEST_F(CompactVectorFixture, CopyMove) {
   auto cvector1(vector1);
   auto cvector2(vector2);
-  EXPECT_EQ(vector1.size(), vector2.size());
+  EXPECT_EQ(size, cvector1.size());
+  EXPECT_EQ(size, cvector2.size());
   for(size_t i = 0; i < size; i++) {
     EXPECT_EQ(vector1[i], cvector1[i]);
     EXPECT_EQ(vector2[i], cvector2[i]);
@@ -68,6 +70,37 @@ TEST_F(CompactVectorFixture, CopyMove) {
     EXPECT_EQ((int)i, mvector2[i]);
   }
 } // CompactVector.CopyMove
+
+TEST_F(CompactVectorFixture, CopyMoveOp) {
+  decltype(vector1) cvector1(bits);
+  decltype(vector2) cvector2;
+
+  EXPECT_EQ(0, cvector1.size());
+  EXPECT_EQ(0, cvector2.size());
+
+  cvector1 = vector1;
+  cvector2 = vector2;
+
+  EXPECT_EQ(size, cvector1.size());
+  EXPECT_EQ(size, cvector2.size());
+  for(size_t i = 0; i < size; i++) {
+    EXPECT_EQ(vector1[i], cvector1[i]);
+    EXPECT_EQ(vector2[i], cvector2[i]);
+  }
+
+  decltype(vector1) mvector1(bits);
+  decltype(vector2) mvector2;
+
+  mvector1 = std::move(cvector1);
+  mvector2 = std::move(cvector2);
+
+  EXPECT_EQ(size, mvector1.size());
+  EXPECT_EQ(size, mvector2.size());
+  for(size_t i = 0; i < size; i++) {
+    EXPECT_EQ(vector1[i], mvector1[i]);
+    EXPECT_EQ(vector2[i], mvector2[i]);
+  }
+} // CompactVector.CopyMoveOp
 
 TEST_F(CompactVectorFixture, At) {
   EXPECT_NO_THROW(
@@ -188,6 +221,7 @@ TEST_F(CompactVectorFixture, Erase) {
 TEST(CompactIterator, Nullptr) {
   compact::iterator<int> it(nullptr);
 
+  EXPECT_EQ(it, nullptr);
   EXPECT_EQ(nullptr, it);
 } // CompactVector.Pointer
 
@@ -276,6 +310,7 @@ TEST(CompactVector, CAS) {
     EXPECT_TRUE(v >= 1 && v <= nb_threads);
     --successes_ptr[v - 1];
   }
+  static_assert(std::is_same<decltype(vector1.cbegin()), decltype(vector1.cend())>::value, "Type begin and end");
   for(auto it = vector1.cbegin(); it != vector1.cend(); ++it) {
     SCOPED_TRACE(::testing::Message() << "i:" << (it - vector1.cbegin()));
     ASSERT_LE((unsigned int)1, *it);
@@ -288,5 +323,27 @@ TEST(CompactVector, CAS) {
   for(const auto s : successes_ci)
     EXPECT_EQ((size_t)0, s);
 } // CompactVector.CAS
+
+// TEST_F(CompactVectorFixture, ReverseIterators) {
+//   auto r1 = vector1.rbegin();
+//   auto e1 = vector1.rend();
+//   // auto rc1 = vector1.crbegin();
+//   // auto re1 = vector1.crend();
+//   // auto cr1 = vector1c.rbegin();
+//   // auto ce1 = vector1c.rend();
+
+//   for(size_t i = size; i > 0; --i, --r1) { // , --rc1, --cr1) {
+//     EXPECT_FALSE(r1 == e1);
+//     // EXPECT_FALSE(rc1 == re1);
+//     // EXPECT_FALSE(cr1 == ce1);
+//     EXPECT_EQ(vector1[i-1], *r1);
+//     // EXPECT_EQ(vector1[i-1], *rc1);
+//     // EXPECT_EQ(vector1[i-1], *cr1);
+//   }
+
+//   EXPECT_TRUE(r1 == e1);
+//   // EXPECT_TRUE(rc1 == re1);
+//   // EXPECT_TRUE(cr1 == e1);
+// }
 
 } // empty namespace

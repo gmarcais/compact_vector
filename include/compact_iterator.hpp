@@ -8,6 +8,10 @@
 #include <climits>
 #include <ostream>
 
+#if __cplusplus >= 202002L
+#include <compare>
+#endif
+
 #include "const_iterator_traits.hpp"
 #include "parallel_iterator_traits.hpp"
 #include "prefetch_iterator_traits.hpp"
@@ -443,6 +447,25 @@ public:
     return gf_sp_helper::template getfetch<IDX, BITS, W, UB>(self.m_ptr, self.bits(), self.m_offset);
   }
 
+#if __cplusplus >= 202002L
+  // With C++20, define the spaceship operator and the rest is inferred
+  auto operator<=>(const common& rhs) const {
+    const Derived& self = *static_cast<const Derived*>(this);
+    const Derived& other = static_cast<const Derived&>(rhs);
+    const auto ptr_cmp = self.m_ptr <=> other.m_ptr;
+    if(std::is_neq(ptr_cmp))
+      return ptr_cmp;
+    return self.m_offset <=> other.m_offset;
+  }
+  bool operator==(const common& rhs) const {
+    return std::is_eq(*this <=> rhs);
+  }
+  bool operator==(std::nullptr_t p) const {
+    const Derived& self = *static_cast<const Derived*>(this);
+    return self.m_ptr == nullptr && self.m_offset == 0;
+  }
+#else
+  // Previous version of C++ require explicit definition of every operators
   bool operator==(const Derived& rhs) const {
     const Derived& self = *static_cast<const Derived*>(this);
     return self.m_ptr == rhs.m_ptr && self.m_offset == rhs.m_offset;
@@ -451,11 +474,11 @@ public:
     return !(*this == rhs);
   }
 
-  bool operator==(std::nullptr_t p) {
+  bool operator==(std::nullptr_t p) const {
     const Derived& self = *static_cast<const Derived*>(this);
     return self.m_ptr == nullptr && self.m_offset == 0;
   }
-  bool operator!=(std::nullptr_t p) {
+  bool operator!=(std::nullptr_t p) const {
     return !(*this == nullptr);
   }
 
@@ -473,6 +496,7 @@ public:
   bool operator<=(const Derived& rhs) const {
     return !(*this > rhs);
   }
+#endif
 
   Derived& operator++() {
     Derived& self = *static_cast<Derived*>(this);
@@ -672,17 +696,17 @@ bool lexicographical_compare_n(Iterator first1, const size_t len1,
 }
 
 template<typename D, typename I, unsigned B, typename W, unsigned U>
-bool operator==(std::nullptr_t lfs, const common<D, I, B, W, U>& rhs) {
-  return rhs == nullptr;
+inline bool operator==(std::nullptr_t lfs, const common<D, I, B, W, U>& rhs) {
+  return rhs.operator==(nullptr);
 }
 
 template<typename D, typename I, unsigned B, typename W, unsigned U>
-D operator+(typename common<D, I, B, W, U>::difference_type lhs, const common<D, I, B, W, U>& rhs) {
+inline D operator+(typename common<D, I, B, W, U>::difference_type lhs, const common<D, I, B, W, U>& rhs) {
   return rhs + lhs;
 }
 
 template<typename D, typename I, unsigned B, typename W, unsigned U>
-std::ostream& operator<<(std::ostream& os, const common<D, I, B, W, U>& rhs) {
+inline std::ostream& operator<<(std::ostream& os, const common<D, I, B, W, U>& rhs) {
   return rhs.print(os);
 }
 
