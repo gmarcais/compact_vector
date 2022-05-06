@@ -1,0 +1,26 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: Unit tests on ${{ matrix.os }} with ${{ matrix.compiler }} standard ${{ matrix.standard }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04]
+        standard: [c++11, c++14, c++17, c++20]
+        compiler: [g++-10, clang++-12]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: configure ${{ matrix.standard }}
+      run: ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
+    - name: check ${{ matrix.standard }}
+      run: make check
