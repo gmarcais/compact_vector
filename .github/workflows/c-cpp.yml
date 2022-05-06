@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-20.04]
+        os: [ubuntu-20.04]
         standard: [c++11, c++14, c++17, c++20]
         compiler: [g++-10, clang++-12]
 
