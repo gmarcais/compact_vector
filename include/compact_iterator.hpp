@@ -406,6 +406,15 @@ struct mask_store<W, true> {
   }
 };
 
+// Replacement for the now deprecated (C++17) std::iterator
+template<typename T>
+struct iterator_types {
+  typedef T                               value_type;
+  typedef ptrdiff_t                       difference_type;
+  typedef T*                              pointer;
+  typedef T&                              reference;
+  typedef std::random_access_iterator_tag iterator_category;
+};
 
 // Base class for the iterators
 template<class Derived, typename IDX, unsigned BITS, typename W, unsigned UB>
@@ -425,7 +434,7 @@ protected:
                 "The size of integral type IDX must be less than the word type W");
 
 public:
-  typedef typename std::iterator<std::random_access_iterator_tag, IDX>::difference_type difference_type;
+  typedef typename iterator_types<IDX>::difference_type difference_type;
   static constexpr unsigned used_bits = UB;
 
   Derived& operator=(const Derived& rhs) {
@@ -453,12 +462,12 @@ public:
     const Derived& self = *static_cast<const Derived*>(this);
     const Derived& other = static_cast<const Derived&>(rhs);
     const auto ptr_cmp = self.m_ptr <=> other.m_ptr;
-    if(std::is_neq(ptr_cmp))
+    if(ptr_cmp != 0)
       return ptr_cmp;
     return self.m_offset <=> other.m_offset;
   }
   bool operator==(const common& rhs) const {
-    return std::is_eq(*this <=> rhs);
+    return (*this <=> rhs) == 0;
   }
   bool operator==(std::nullptr_t p) const {
     const Derived& self = *static_cast<const Derived*>(this);
@@ -820,7 +829,7 @@ void swap(lhs_setter<I, BITS, W, TS, UB> x, lhs_setter<I, BITS, W, TS, UB> y) {
 // Specialization with BITS=0 (dynamic/runtime number of bits used)
 template<typename IDX, typename W, bool TS, unsigned UB>
 class iterator<IDX, 0, W, TS, UB> :
-    public std::iterator<std::random_access_iterator_tag, IDX>,
+    public iterator_imp::iterator_types<IDX>,
     public iterator_imp::common<iterator<IDX, 0, W, TS, UB>, IDX, 0, W, UB>
 {
   W*       m_ptr;
@@ -832,7 +841,7 @@ class iterator<IDX, 0, W, TS, UB> :
   friend class iterator_imp::common<iterator<IDX, 0, W, TS, UB>, IDX, 0, W, UB>;
   friend class iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, 0, W, UB>;
 
-  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+  typedef iterator_imp::iterator_types<IDX> super;
 public:
   typedef typename super::value_type                  value_type;
   typedef typename super::difference_type             difference_type;
@@ -867,7 +876,7 @@ protected:
 
 template<typename IDX, typename W, unsigned UB>
 class const_iterator<IDX, 0, W, UB> :
-  public std::iterator<std::random_access_iterator_tag, const IDX>,
+  public iterator_imp::iterator_types<const IDX>,
   public iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, 0, W, UB>
 {
   const W* m_ptr;
@@ -879,7 +888,7 @@ class const_iterator<IDX, 0, W, UB> :
   friend class iterator_imp::common<iterator<IDX, 0, W, false, UB>, IDX, 0, W, UB>;
   friend class iterator_imp::common<const_iterator<IDX, 0, W, UB>, IDX, 0, W, UB>;
 
-  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+  typedef iterator_imp::iterator_types<IDX> super;
 public:
   typedef typename super::value_type      value_type;
   typedef typename super::difference_type difference_type;
@@ -906,7 +915,7 @@ public:
 // No specialization. Static number of bits used.
 template<typename IDX, unsigned BITS, typename W, bool TS, unsigned UB>
 class iterator :
-    public std::iterator<std::random_access_iterator_tag, IDX>,
+    public iterator_imp::iterator_types<IDX>,
     public iterator_imp::common<iterator<IDX, BITS, W, TS, UB>, IDX, BITS, W, UB>
 {
   W*       m_ptr;
@@ -917,7 +926,7 @@ class iterator :
   friend class iterator_imp::common<iterator<IDX, BITS, W, TS, UB>, IDX, BITS, W, UB>;
   friend class iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>;
 
-  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+  typedef iterator_imp::iterator_types<IDX> super;
 public:
   typedef typename super::value_type                  value_type;
   typedef typename super::difference_type             difference_type;
@@ -954,7 +963,7 @@ protected:
 
 template<typename IDX, unsigned BITS, typename W, unsigned UB>
 class const_iterator :
-  public std::iterator<std::random_access_iterator_tag, const IDX>,
+  public iterator_imp::iterator_types<const IDX>,
   public iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>
 {
   const W* m_ptr;
@@ -965,7 +974,7 @@ class const_iterator :
   friend class iterator_imp::common<iterator<IDX, BITS, W, false, UB>, IDX, BITS, W, UB>;
   friend class iterator_imp::common<const_iterator<IDX, BITS, W, UB>, IDX, BITS, W, UB>;
 
-  typedef std::iterator<std::random_access_iterator_tag, IDX> super;
+  typedef iterator_imp::iterator_types<IDX> super;
 public:
   typedef typename super::value_type      value_type;
   typedef typename super::difference_type difference_type;

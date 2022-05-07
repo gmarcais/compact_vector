@@ -84,7 +84,7 @@ void single_thread_test(size_t size, CV& vector1, CV& vector2, CV& vector3) {
     std::vector<size_t> order;
     auto it1 = vector1.cbegin();
     for(size_t i = 0; i < size; ++i) order.push_back(i);
-    std::random_shuffle(order.begin(), order.end());
+    std::shuffle(order.begin(), order.end(), prg);
     for(auto i : order) {
       EXPECT_EQ(ary[i], it1[i]);
       EXPECT_EQ(ary[i], vector2[i]);
