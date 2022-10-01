@@ -1,3 +1,5 @@
+![CI](https://github.com/gmarcais/compact_vector/actions/workflows/c-cpp.yml/badge.svg?event=push)
+
 # Compact vector
 
 This library provide a bit-packed vector like data structure for
