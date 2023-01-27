@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <algorithm>
+#include <memory>
 
 #include "compact_iterator.hpp"
 
@@ -18,10 +19,10 @@ inline int clz(unsigned long long x) { return __builtin_clzll(x); }
 template<class Derived,
          typename IDX, unsigned BITS, typename W, typename Allocator, unsigned UB, bool TS>
 class vector {
-  Allocator m_allocator;
-  size_t    m_size;             // Size in number of elements
-  size_t    m_capacity;         // Capacity in number of elements
-  W*        m_mem;
+  Allocator                                           m_allocator;
+  size_t                                              m_size;             // Size in number of elements
+  size_t                                              m_capacity;         // Capacity in number of elements
+  typename std::allocator_traits<Allocator>::pointer  m_mem;
 
 public:
   // Number of bits required for indices/values in the range [0, s).
@@ -41,21 +42,22 @@ public:
   typedef compact::iterator<IDX, BITS, W, true, UB> mt_iterator; // Multi thread safe version
   typedef std::reverse_iterator<iterator>        reverse_iterator;
   typedef std::reverse_iterator<const_iterator>  const_reverse_iterator;
+  typedef typename std::allocator_traits<Allocator>::pointer pointer;
 
 protected:
-  static W* allocate_s(size_t capacity, unsigned bits, Allocator& allocator) {
+  static pointer allocate_s(size_t capacity, unsigned bits, Allocator& allocator) {
     const auto nb_words = elements_to_words(capacity, bits);
-    W* res = allocator.allocate(nb_words);
+    pointer res = std::allocator_traits<Allocator>::allocate(allocator, nb_words);
     if(UB != bitsof<W>::val) // CAS vector, expect high bit of each word to be zero, so zero it all
       std::fill_n(res, nb_words, (W)0);
     return res;
   }
 
-  W* allocate(size_t capacity) {
+  pointer allocate(size_t capacity) {
     return allocate_s(capacity, bits(), m_allocator);
   }
 
-  void deallocate(W* mem, size_t capacity) {
+  void deallocate(pointer mem, size_t capacity) {
     m_allocator.deallocate(mem, elements_to_words(capacity, bits()));
   }
 
@@ -95,7 +97,7 @@ public:
     : vector(0, 0, allocator)
   { }
   ~vector() {
-    m_allocator.deallocate(m_mem, elements_to_words(m_capacity, bits()));
+    std::allocator_traits<Allocator>::deallocate(m_allocator, m_mem, elements_to_words(m_capacity, bits()));
   }
 
   vector& operator=(const vector& rhs) {
@@ -234,8 +236,8 @@ public:
   }
   void emplace_back(IDX x) { push_back(x); }
 
-  W* get() { return m_mem; }
-  const W* get() const { return m_mem; }
+  pointer get() { return m_mem; }
+  const pointer get() const { return m_mem; }
   size_t bytes() const { return sizeof(W) * elements_to_words(m_capacity, bits()); }
   inline unsigned bits() const { return static_cast<const Derived*>(this)->bits(); }
   static constexpr unsigned static_bits() { return BITS; }
@@ -245,7 +247,7 @@ public:
 protected:
   void enlarge(size_t given = 0) {
     const size_t new_capacity = !given ? std::max(m_capacity * 2, (size_t)(bitsof<W>::val / bits() + 1)) : given;
-    W* new_mem = allocate(new_capacity);
+    pointer new_mem = allocate(new_capacity);
     std::copy(m_mem, m_mem + elements_to_words(m_capacity, bits()), new_mem);
     deallocate(m_mem, m_capacity);
     m_mem      = new_mem;
