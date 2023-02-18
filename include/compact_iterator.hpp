@@ -628,7 +628,7 @@ public:
   template<bool TS = false>
   void set_bits(W x, unsigned bits) {
     Derived& self  = *static_cast<Derived*>(this);
-    gs<W, BITS, W, UB>::set<TS>(x, self.m_ptr, bits, self.m_offset);
+    gs<W, BITS, W, UB>::template set<TS>(x, self.m_ptr, bits, self.m_offset);
   }
 
   // Get, i.e., don't use fetch
