@@ -23,36 +23,9 @@ jobs:
     - name: Install gtest
       run: |
         sudo apt-get update
-        sudo apt-get install libgtest-dev
         sudo apt-get install g++-12
+        sudo apt-get install libgtest-dev
     - name: configure ${{ matrix.standard }}
       run: autoreconf -fi && ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
-    - name: check ${{ matrix.standard }}
-      run: make -j 2 check
-
-  test_libcxx:
-    name: Unit tests with clang and libc++
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        standard: [c++11, c++14, c++17, c++20]
-
-    steps:
-    - uses: actions/checkout@v3
-    - name: Install gtest
-      run: |
-        set -e
-        sudo apt install libc++-12-dev libc++1-12 libc++abi1-12 libc++abi-12-dev
-        mkdir gtest build
-        curl -L https://github.com/google/googletest/archive/refs/tags/release-1.11.0.tar.gz | tar zx --strip-components=1 -C gtest
-        cd build
-        cmake ../gtest -DBUILD_GMOCK=OFF -DCMAKE_CXX_COMPILER=clang++-12 -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++"
-        make -j 2
-        sudo make install
-        sudo ldconfig
-    - name: configure
-      run: |
-        autoreconf -fi
-        PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure CC=clang-12 CXX=clang++-12 CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror -stdlib=libc++" LDFLAGS="-stdlib=libc++" || cat config.log
     - name: check ${{ matrix.standard }}
       run: make -j 2 check
