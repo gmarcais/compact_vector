@@ -16,7 +16,7 @@ jobs:
       matrix:
         os: [ubuntu-20.04]
         standard: [c++11, c++14, c++17, c++20]
-        compiler: [g++-10, clang++-12]
+        compiler: [g++-12, clang++-12]
 
     steps:
     - uses: actions/checkout@v3
