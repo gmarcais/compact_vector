@@ -1,4 +1,4 @@
-AM_CXXFLAGS = -Wall -Werror -std=c++11 -I$(top_srcdir)/include -I$(top_srcdir)/tests
+AM_CXXFLAGS = -Wall -Werror -I$(top_srcdir)/include -I$(top_srcdir)/tests
 
 pkginclude_HEADERS = include/compact_iterator.hpp		\
                      include/compact_vector.hpp			\

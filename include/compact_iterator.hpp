@@ -1,6 +1,10 @@
 #ifndef __COMPACT_ITERATOR_H__
 #define __COMPACT_ITERATOR_H__
 
+#if __cplusplus < 201103L
+#error C++ versions less than C++11 are not supported.
+#endif
+
 #include <iterator>
 #include <memory>
 #include <type_traits>
