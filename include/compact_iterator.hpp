@@ -1,6 +1,10 @@
 #ifndef __COMPACT_ITERATOR_H__
 #define __COMPACT_ITERATOR_H__
 
+#if __cplusplus < 201103L
+#error C++ versions less than C++11 are not supported.
+#endif
+
 #include <iterator>
 #include <memory>
 #include <type_traits>
@@ -628,7 +632,7 @@ public:
   template<bool TS = false>
   void set_bits(W x, unsigned bits) {
     Derived& self  = *static_cast<Derived*>(this);
-    gs<W, BITS, W, UB>::set<TS>(x, self.m_ptr, bits, self.m_offset);
+    gs<W, BITS, W, UB>::template set<TS>(x, self.m_ptr, bits, self.m_offset);
   }
 
   // Get, i.e., don't use fetch

@@ -1,4 +1,4 @@
-AC_INIT([compact_vector],[0.1.1],[gmarcais@cs.cmu.edu])
+AC_INIT([compact_vector],[0.1.2],[gmarcais@cs.cmu.edu])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_SILENT_RULES([yes])
 AC_CONFIG_SRCDIR([include/compact_vector.hpp]) 

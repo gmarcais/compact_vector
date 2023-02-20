@@ -241,6 +241,10 @@ public:
   static constexpr unsigned static_bits() { return BITS; }
   static constexpr unsigned used_bits() { return UB; }
   static constexpr bool thread_safe() { return TS; }
+  // Zero out the entire memory array. Every element is 0 after this call.
+  void zero() {
+    std::fill_n(get(), elements_to_words(capacity(), bits()), (W)0);
+  }
 
 protected:
   void enlarge(size_t given = 0) {

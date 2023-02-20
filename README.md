@@ -1,15 +1,16 @@
+![CI](https://github.com/gmarcais/compact_vector/actions/workflows/c-cpp.yml/badge.svg?event=push)
+
 # Compact vector
 
-This library provide a bit-packed vector like data structure for
-storing integer types.
+This library provides a bit-packed vector like data structure for storing
+integer types.
 
-* The number of bits used by each entry is specified either at
-  compile time as a template argument, or at runtime. More
-  optimizations are performed when the number of bits is known at
-  compile time.
+* The number of bits used by each entry is specified either at compile time as a
+  template argument, or at runtime as an argument to the constructor. More
+  optimizations are performed when the number of bits is known at compile time.
 * The vector supports storing both signed and unsigned integer types.
-* The library provides two variant of vectors (`vector` and
-  `ts_vector`) with different multi-threading guarantees.
+* The library provides two variant of vectors (`vector` and `ts_vector`) with
+  different multi-threading guarantees.
 
 # Installation
 
@@ -28,8 +29,8 @@ To install the library globally on a system, use:
 make install
 ```
 
-After installation, use `pkg-config --cflags compact_vector` to use
-the library.
+After installation, use `pkg-config --cflags compact_vector` get the compiler
+flags.
 
 ## Testing
 
@@ -87,8 +88,7 @@ from two different threads.
 
 ## Thread safe vector class
 
-The class `compact::ts_vector` is thread safe in the sense that if `i
-!= j`, then accessing `a[i]` and `a[j]` from two different threads is
-safe (just like `std::vector`). There is a performance penalties as
-updates to the data structure are now performed with CAS (compare and
-swap) atomic operations.
+The class `compact::ts_vector` is thread safe in the sense that if `i != j`,
+then accessing `a[i]` and `a[j]` from two different threads is safe (just like
+`std::vector`). There is a performance penalty as updates to the data structure
+are now performed with CAS (compare and swap) atomic operations.

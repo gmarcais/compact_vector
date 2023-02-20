@@ -213,6 +213,16 @@ TEST_F(CompactVectorFixture, Erase) {
   }
 } // CompactVectorFixture.Erase
 
+TEST_F(CompactVectorFixture, Zero) {
+  vector1.zero();
+  vector2.zero();
+
+  for(size_t i = 0; i < vector1.size(); ++i)
+    EXPECT_EQ((int)0, vector1[i]);
+  for(size_t i = 0; i < vector2.size(); ++i)
+    EXPECT_EQ((int)0, vector2[i]);
+} // CompactVectorFixture.Zero
+
 
 //
 // Testing compact::vector_imp::vector for different vector type, word type, bits and used bits value.
