@@ -95,7 +95,9 @@ public:
     : vector(0, 0, allocator)
   { }
   ~vector() {
-    m_allocator.deallocate(m_mem, elements_to_words(m_capacity, bits()));
+    if (m_mem) {
+      m_allocator.deallocate(m_mem, elements_to_words(m_capacity, bits()));
+    }
   }
 
   vector& operator=(const vector& rhs) {
