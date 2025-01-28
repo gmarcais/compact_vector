@@ -6,7 +6,7 @@ on:
       - master
       - develop
   pull_request:
-    branches: [ master, develop ]
+    branches: [master, develop]
 
 jobs:
   test:
@@ -19,15 +19,15 @@ jobs:
         compiler: [g++-12, clang++-14]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install gtest
-      run: |
-        sudo apt-get update
-        sudo apt-get install libgtest-dev
-    - name: configure ${{ matrix.standard }}
-      run: autoreconf -fi && ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
-    - name: check ${{ matrix.standard }}
-      run: make -j 2 check
+      - uses: actions/checkout@v3
+      - name: Install gtest
+        run: |
+          sudo apt-get update
+          sudo apt-get install libgtest-dev
+      - name: configure ${{ matrix.standard }}
+        run: autoreconf -fi && ./configure CXX=${{ matrix.compiler }} CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror"
+      - name: check ${{ matrix.standard }}
+        run: make -j 2 check
 
   test_libcxx:
     name: Unit tests with clang and libc++
@@ -37,20 +37,36 @@ jobs:
         standard: [c++11, c++14, c++17, c++20]
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Install gtest
-      run: |
-        set -e
-        mkdir gtest build
-        curl -L https://github.com/google/googletest/archive/refs/tags/release-1.11.0.tar.gz | tar zx --strip-components=1 -C gtest
-        cd build
-        cmake ../gtest -DBUILD_GMOCK=OFF -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++"
-        make -j 2
-        sudo make install
-        sudo ldconfig
-    - name: configure
-      run: |
-        autoreconf -fi
-        PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure CC=clang CXX=clang++ CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror -stdlib=libc++" LDFLAGS="-stdlib=libc++" || cat config.log
-    - name: check ${{ matrix.standard }}
-      run: make -j 2 check
+      - uses: actions/checkout@v3
+      - name: Install gtest
+        run: |
+          set -e
+          mkdir gtest build
+          curl -L https://github.com/google/googletest/archive/refs/tags/release-1.11.0.tar.gz | tar zx --strip-components=1 -C gtest
+          cd build
+          cmake ../gtest -DBUILD_GMOCK=OFF -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-stdlib=libc++" -DCMAKE_SHARED_LINKER_FLAGS="-stdlib=libc++"
+          make -j 2
+          sudo make install
+          sudo ldconfig
+      - name: configure
+        run: |
+          autoreconf -fi
+          PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure CC=clang CXX=clang++ CXXFLAGS="-std=${{ matrix.standard }} -Wall -Werror -stdlib=libc++" LDFLAGS="-stdlib=libc++" || cat config.log
+      - name: check ${{ matrix.standard }}
+        run: make -j 2 check
+
+  test_macos:
+    name: Unit tests on macos
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout/@v3
+      - name: Install dependencies
+        run: |
+          brew install googletest jq autoconf automake libtool pkgconf
+          gem install yaggo
+      - name: configure
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix)/Cellar/googletest/$(brew info --json googletest | jq -r '.[0].linked_keg')/lib/pkgconfig"
+          autoreconf -fi
+          ./configure CXXFLAGS="-Wall -Werror -std=c++14"
+          make -j 2 check
