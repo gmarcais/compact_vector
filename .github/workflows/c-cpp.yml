@@ -63,10 +63,24 @@ jobs:
       - name: Install dependencies
         run: |
           brew install googletest jq autoconf automake libtool pkgconf
-          gem install yaggo
-      - name: configure
+      - name: Build and test
         run: |
           export PKG_CONFIG_PATH="$(brew --prefix)/Cellar/googletest/$(brew info --json googletest | jq -r '.[0].linked_keg')/lib/pkgconfig"
           autoreconf -fi
           ./configure CXXFLAGS="-Wall -Werror -std=c++14"
           make -j 2 check
+
+  test_freebsd:
+    name: Unit tests on Freebsd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile on FreeBSD
+        id: test
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y gmake autoconf automake libtool googletest pkgconf
+          run: |
+            autoreconf -fi && ./configure MAKE=gmake && gmake check
